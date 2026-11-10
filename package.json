@@ -1,0 +1,16 @@
+{
+  "name": "amigo-invisible-aboiz-github-wix",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/local-server.mjs",
+    "dev": "node --watch server/local-server.mjs",
+    "wix:plan": "node tools/collections.mjs",
+    "wix:check": "node tools/collections.mjs --check",
+    "wix:create": "node tools/collections.mjs --apply",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm test"
+  },
+  "engines": {"node": ">=20"}
+}

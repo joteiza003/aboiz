@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+# La directiva noindex de cada página evita indexación; bloquear crawl impediría leerla.
