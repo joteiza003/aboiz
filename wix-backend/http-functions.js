@@ -55,7 +55,7 @@ async function verify(token){
  return p;
 }
 const requireRole=(p,roles)=>{if(!roles.includes(p.role))err('No tienes permisos',403);};
-const cleanPerson=p=>({_id:p._id,name:p.name,email:p.email||'',active:!!p.active,hasCode:!!p.codeHash});
+const cleanPerson=p=>({_id:p._id,name:p.title,email:p.email||'',active:!!p.active,hasCode:!!p.codeHash});
 const text=(x,max)=>String(x||'').trim().slice(0,max);
 const isEmail=x=>!x||/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
 async function all(col){let arr=[],skip=0,got;do{got=await wixData.query(col).limit(1000).skip(skip).find(OPT);arr.push(...got.items);skip+=got.items.length;}while(got.hasNext()&&arr.length<5000);return arr;}
@@ -65,8 +65,8 @@ function randomInt(n){return crypto.randomInt(n);}
 function shuffle(list){for(let i=list.length-1;i>0;i--){const j=randomInt(i+1);[list[i],list[j]]=[list[j],list[i]];}return list;}
 function makeDraw(people,fixed){
  const n=people.length;if(n<3)err('Se necesitan al menos tres participantes activos');
- const give=fixed.giver?people.findIndex(p=>norm(p.name)===norm(fixed.giver)):-1;
- const receive=fixed.receiver?people.findIndex(p=>norm(p.name)===norm(fixed.receiver)):-1;
+ const give=fixed.giver?people.findIndex(p=>norm(p.title)===norm(fixed.giver)):-1;
+ const receive=fixed.receiver?people.findIndex(p=>norm(p.title)===norm(fixed.receiver)):-1;
  if(fixed.giver&&fixed.receiver&&(give<0||receive<0))err('Falta una persona de la pareja fija configurada',409);
  for(let attempt=0;attempt<20000;attempt++){
    let arr=shuffle(Array.from({length:n},(_,i)=>i));
@@ -92,7 +92,7 @@ async function handler(action,data){
    const codeHash=hash((await secret(SECRET_NAMES.pepper))+':'+code);
    const rows=await wixData.query(DB.people).eq('codeHash',codeHash).limit(2).find(OPT);
    const p=rows.items[0];if(!p||!p.active)err('Código no válido',401);
-   return {token:await sign('guest',p._id,p.rev),role:'guest',name:p.name};
+   return {token:await sign('guest',p._id,p.rev),role:'guest',name:p.title};
  }
  const p=await verify(data.token);
  if(action==='me'){
@@ -105,9 +105,9 @@ async function handler(action,data){
      if(recipientId){
        const target=await wixData.get(DB.people,recipientId,OPT);
        const targetWish=await wixData.query(DB.wish).eq('personId',recipientId).eq('year',YEAR).limit(1).find(OPT);
-       gift={name:target.name,wishes:stripWish(targetWish.items[0])};
+       gift={name:target.title,wishes:stripWish(targetWish.items[0])};
      }
-     return {role:'guest',person:{name:self.name},myWishes:stripWish(w.items[0]),gift,drawReady:!!draw};
+     return {role:'guest',person:{name:self.title},myWishes:stripWish(w.items[0]),gift,drawReady:!!draw};
    }
    const people=(await all(DB.people)).filter(x=>x.year===YEAR).map(cleanPerson).sort((a,b)=>a.name.localeCompare(b.name,'es'));
    const draw=await currentDraw();
@@ -134,8 +134,8 @@ async function handler(action,data){
    if(name.length<2||!isEmail(email))err('Nombre o correo incorrectos');
    const people=(await all(DB.people)).filter(x=>x.year===YEAR);
    if(people.length>=MAX_PEOPLE)err('Límite de participantes alcanzado');
-   if(people.some(x=>norm(x.name)===norm(name)))err('Ya existe un participante con ese nombre',409);
-   const obj=await wixData.insert(DB.people,{name,email,year:YEAR,active:true,codeHash:'',rev:rand(10)},OPT);
+   if(people.some(x=>norm(x.title)===norm(name)))err('Ya existe un participante con ese nombre',409);
+   const obj=await wixData.insert(DB.people,{title:name,email,year:YEAR,active:true,codeHash:'',rev:rand(10)},OPT);
    return {person:cleanPerson(obj)};
  }
  if(action==='updatePerson'){
@@ -145,8 +145,8 @@ async function handler(action,data){
    const name=text(data.name,100),email=text(data.email,160);
    if(name.length<2||!isEmail(email))err('Nombre o correo incorrectos');
    const others=(await all(DB.people)).filter(y=>y.year===YEAR&&y._id!==x._id);
-   if(others.some(y=>norm(y.name)===norm(name)))err('Nombre duplicado',409);
-   x.name=name;x.email=email;
+   if(others.some(y=>norm(y.title)===norm(name)))err('Nombre duplicado',409);
+   x.title=name;x.email=email;
    await wixData.update(DB.people,x,OPT);return {ok:true};
  }
  if(action==='removePerson'){
@@ -166,7 +166,7 @@ async function handler(action,data){
    if(Boolean(fixedGiver)!==Boolean(fixedReceiver))err('Configura ambos secretos de pareja fija o ninguno',503);
    const pairs=makeDraw(people,{giver:fixedGiver,receiver:fixedReceiver});
    // Solo un registro de sorteo; el campo pairs nunca sale al gestor ni a invitados.
-   await wixData.insert(DB.draw,{year:YEAR,active:true,pairs,createdAt:new Date()},OPT);
+   await wixData.insert(DB.draw,{title:`Sorteo ${YEAR}`,year:YEAR,active:true,pairs,createdAt:new Date()},OPT);
    // Invalidación de códigos anteriores, si los había.
    for(const x of people){x.codeHash='';x.rev=rand(10);await wixData.update(DB.people,x,OPT);}
    return {ok:true};
@@ -185,7 +185,7 @@ async function handler(action,data){
    const code='AB26-'+rand(27);
    x.codeHash=hash((await secret(SECRET_NAMES.pepper))+':'+code);x.rev=rand(10);
    await wixData.update(DB.people,x,OPT);
-   return {name:x.name,email:x.email||'',code}; // ÚNICA VEZ: mostrar para copiar, NO volver a consultar
+   return {name:x.title,email:x.email||'',code}; // ÚNICA VEZ: mostrar para copiar, NO volver a consultar
  }
  err('Operación desconocida',404);
 }
