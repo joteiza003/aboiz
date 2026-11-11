@@ -13,7 +13,8 @@ test('HTML bloquea indexación y tiene tres opciones',()=>{
 });
 test('la interfaz separa evento, sorteo, entrega y permisos',()=>{
  const js=read('assets/app.js');
- for(const val of ['adminEvent','saveDrawOptions','markDelivered','deliveryMessage','fixedGiverId','exclusions'])assert.ok(js.includes(val));
+ for(const val of ['adminEvent','saveDrawOptions','markDelivered','deliveryMessage','exclusions'])assert.ok(js.includes(val));
+ assert.doesNotMatch(js,/pareja fija|fixedGiver|fixedReceiver/i);
  assert.ok(js.includes('testDraw'));assert.match(js,/state\.modal = null;\s*task\(async \(\) => \{\s*await request\("updatePerson"/);
  assert.match(js,/state\.role === "admin"/);assert.match(js,/David no puede ver/);
 });

@@ -67,8 +67,6 @@ Añade los siguientes **4 secretos obligatorios**, valores únicos y fuertes:
 | `ABOIZ_SIGNING_KEY` | Cadena aleatoria impredecible de 32+ bytes para firmar sesiones. |
 | `ABOIZ_CODE_PEPPER` | Otra cadena aleatoria de 32+ bytes para proteger hashes de códigos. |
 
-Opcional: `ABOIZ_FIXED_GIVER` y `ABOIZ_FIXED_RECEIVER` para forzar una asignación individual. **Configura los dos o ninguno**. Los nombres concretos van únicamente en Wix Secrets Manager; **no están en los archivos públicos**. El código del servidor aplica esta regla si ambas personas están en el sorteo.
-
 Puedes generar claves aleatorias en PowerShell sin subirlas a Internet:
 
 ```powershell
@@ -100,7 +98,7 @@ Para comprobar CORS y el backend: abre las herramientas de desarrollador (F12), 
 
 - Accede como Joseba, añade tres personas ficticias, edita una y retira otra. Debe bloquearse la edición cuando hay sorteo.
 - Comprueba que la sesión de David no muestra emparejamientos y que una petición directa a `me` con su sesión tampoco los devuelve.
-- Añade al menos 3 participantes activos y realiza el sorteo. Comprueba que nadie se regala a sí mismo; si configuraste pareja fija, comprueba su cumplimiento.
+- Añade al menos 3 participantes activos, ejecuta primero la prueba sin guardar y después realiza el sorteo. Comprueba que nadie se regala a sí mismo y que se respetan las exclusiones.
 - Genera un código por participante, cópialo fuera del repositorio e introduce uno desde el móvil. Verifica que solo se ve el destinatario y sus deseos.
 - Guarda una lista en blanco, otra con categorías y otra con texto. Recarga la página y comprueba persistencia.
 - Regenera un código: el anterior debe fallar. Anula el sorteo: todos los anteriores deben fallar.

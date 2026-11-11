@@ -26,7 +26,7 @@ Permisos directos de los tres CMS: `read`, `insert`, `update`, `remove` => `ADMI
 
 ## Regla del sorteo
 
-Permutación aleatoria sin autoasignaciones; no se prohíben parejas recíprocas. Opcionalmente hay una pareja fija mediante secretos Wix. Se bloquea la modificación de participantes una vez realizado el sorteo. Para regenerarlo se anulan resultados y códigos anteriores (las preferencias persisten por participante). Los resultados no se publican en GitHub.
+Permutación aleatoria sin autoasignaciones, con opción de evitar parejas recíprocas y validación de las reglas internas. Se bloquea la modificación de participantes una vez realizado el sorteo. Para regenerarlo se anulan resultados y códigos anteriores (las preferencias persisten por participante). Los resultados no se publican en GitHub.
 
 ## Riesgos y límites
 

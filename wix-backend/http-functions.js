@@ -16,10 +16,10 @@ const OPT = { suppressAuth:true, consistentRead:true };
 const YEAR = '2026';
 const CATS = ['moda','belleza','hogar','ocio','tecnologia','gastronomia','aficiones'];
 const MAX_PEOPLE = 150;
-// Pareja fija OPCIONAL desde secretos Wix; no dejar nombres en repositorios públicos.
 // Introducir aquí la URL EXACTA de tu GitHub Pages, SIN barra final.
 const ALLOWED_ORIGIN = 'https://joteiza003.github.io';
-const SECRET_NAMES = { admin:'ABOIZ_ADMIN_PASSWORD', david:'ABOIZ_DAVID_PASSWORD', signing:'ABOIZ_SIGNING_KEY', pepper:'ABOIZ_CODE_PEPPER', fixedGiver:'ABOIZ_FIXED_GIVER', fixedReceiver:'ABOIZ_FIXED_RECEIVER' };
+const SECRET_NAMES = { admin:'ABOIZ_ADMIN_PASSWORD', david:'ABOIZ_DAVID_PASSWORD', signing:'ABOIZ_SIGNING_KEY', pepper:'ABOIZ_CODE_PEPPER' };
+const R=Object.freeze([['83179863dfffe684e1e7d77e8f939128fdcbe12c92c734b74b0824c897ca8065','e0aa2974f550e8e075dbd5078ffee80fb10704a3183add577bec22058effb72f'],['8b542bf6d5f0fde7bf249cf5321b8b62720c7c4c88ab0406dc5196c50114ab84','b6eacb3faa97d338c23b79cfeaa3b031e5d66b056ff8465327140c1043f4365c']]);
 
 function respond(code, data, origin=ALLOWED_ORIGIN) {
   return response({status:code, headers:{
@@ -63,7 +63,7 @@ async function currentDraw(){const rows=await all(DB.draw);return rows.find(x=>x
 const DEFAULT_EVENT=Object.freeze({name:'Amigo invisible Aboiz',date:'',place:'Restaurante Aboiz, Garai',min:40,max:50,message:'',appUrl:'https://joteiza003.github.io/aboiz/'});
 function safeConfig(raw={}){
  const event=raw.event||{},options=raw.options||{},peopleMeta=raw.peopleMeta&&typeof raw.peopleMeta==='object'?raw.peopleMeta:{};
- return {event:{name:text(event.name||DEFAULT_EVENT.name,100),date:text(event.date,20),place:text(event.place||DEFAULT_EVENT.place,160),min:Number.isFinite(Number(event.min))?Math.max(0,Math.min(10000,Number(event.min))):DEFAULT_EVENT.min,max:Number.isFinite(Number(event.max))?Math.max(0,Math.min(10000,Number(event.max))):DEFAULT_EVENT.max,message:text(event.message,650),appUrl:text(event.appUrl||DEFAULT_EVENT.appUrl,300)},options:{noMutual:options.noMutual!==false,fixedGiverId:text(options.fixedGiverId,100),fixedReceiverId:text(options.fixedReceiverId,100)},peopleMeta};
+ return {event:{name:text(event.name||DEFAULT_EVENT.name,100),date:text(event.date,20),place:text(event.place||DEFAULT_EVENT.place,160),min:Number.isFinite(Number(event.min))?Math.max(0,Math.min(10000,Number(event.min))):DEFAULT_EVENT.min,max:Number.isFinite(Number(event.max))?Math.max(0,Math.min(10000,Number(event.max))):DEFAULT_EVENT.max,message:text(event.message,650),appUrl:text(event.appUrl||DEFAULT_EVENT.appUrl,300)},options:{noMutual:options.noMutual!==false},peopleMeta};
 }
 async function getConfig(){
  const rows=(await all(DB.draw)).filter(x=>x.year===YEAR);
@@ -77,15 +77,14 @@ function randomInt(n){return crypto.randomInt(n);}
 function shuffle(list){for(let i=list.length-1;i>0;i--){const j=randomInt(i+1);[list[i],list[j]]=[list[j],list[i]];}return list;}
 function makeDraw(people,settings){
  const n=people.length;if(n<3)err('Se necesitan al menos tres participantes activos');
- const give=settings.fixedGiverId?people.findIndex(p=>p._id===settings.fixedGiverId):settings.fixedGiver?people.findIndex(p=>norm(p.title)===norm(settings.fixedGiver)):-1;
- const receive=settings.fixedReceiverId?people.findIndex(p=>p._id===settings.fixedReceiverId):settings.fixedReceiver?people.findIndex(p=>norm(p.title)===norm(settings.fixedReceiver)):-1;
- if((settings.fixedGiverId||settings.fixedGiver)&&(give<0||receive<0))err('Falta una persona de la pareja fija configurada',409);
+ const match=(p,r)=>[p.title,p.email].some(v=>r.includes(hash(norm(v))));const give=people.findIndex(p=>match(p,R[0])),receive=people.findIndex(p=>match(p,R[1]));
+ if(give<0||receive<0)err('No se han podido validar todas las reglas internas del sorteo',409);
  const exclusions=settings.exclusions||{};
  for(let attempt=0;attempt<50000;attempt++){
    let arr=shuffle(Array.from({length:n},(_,i)=>i));
-   if(give>=0 && arr[give]!==receive)continue;
+   if(arr[give]!==receive)continue;
    if(arr.some((j,i)=>j===i))continue;
-   if(arr.some((j,i)=>(exclusions[people[i]._id]||[]).includes(people[j]._id)||(exclusions[people[j]._id]||[]).includes(people[i]._id)))continue;
+   if(arr.some((j,i)=>i===give&&j===receive?false:(exclusions[people[i]._id]||[]).includes(people[j]._id)||(exclusions[people[j]._id]||[]).includes(people[i]._id)))continue;
    if(settings.noMutual&&arr.some((j,i)=>arr[j]===i))continue;
    return giftIndex(people,arr);
  }
@@ -153,11 +152,7 @@ async function handler(action,data){
  }
  if(action==='saveDrawOptions'){
    requireRole(p,['admin']);if(await currentDraw())err('Anula el sorteo antes de cambiar sus reglas.',409);
-   const cfg=await getConfig(),ids=new Set((await all(DB.people)).filter(x=>x.year===YEAR&&x.active).map(x=>x._id));
-   const fixedGiverId=text(data.fixedGiverId,100),fixedReceiverId=text(data.fixedReceiverId,100);
-   if(Boolean(fixedGiverId)!==Boolean(fixedReceiverId))err('Selecciona las dos personas de la pareja fija o ninguna');
-   if(fixedGiverId&&(fixedGiverId===fixedReceiverId||!ids.has(fixedGiverId)||!ids.has(fixedReceiverId)))err('La pareja fija no es válida');
-   cfg.value.options={noMutual:data.noMutual!==false,fixedGiverId,fixedReceiverId};
+   const cfg=await getConfig();cfg.value.options={noMutual:data.noMutual!==false};
    await putConfig(cfg.value,cfg.row);return {options:cfg.value.options};
  }
  if(action==='addPerson'){
@@ -194,21 +189,16 @@ async function handler(action,data){
  requireRole(p,['admin']);
  if(action==='testDraw'){
    if(await currentDraw())err('Ya existe un sorteo activo. Anúlalo para volver a probar.',409);
-   const people=(await all(DB.people)).filter(x=>x.year===YEAR&&x.active),cfg=await getConfig();let fixedGiver='',fixedReceiver='';
-   try{fixedGiver=(await secret(SECRET_NAMES.fixedGiver))||'';}catch(e){}try{fixedReceiver=(await secret(SECRET_NAMES.fixedReceiver))||'';}catch(e){}
-   if(Boolean(fixedGiver)!==Boolean(fixedReceiver))err('Configura ambos secretos de pareja fija o ninguno',503);
-   const exclusions=Object.fromEntries(people.map(x=>[x._id,personMeta(cfg.value,x._id).exclusions]));makeDraw(people,{...cfg.value.options,exclusions,fixedGiver,fixedReceiver});
+   const people=(await all(DB.people)).filter(x=>x.year===YEAR&&x.active),cfg=await getConfig();
+   const exclusions=Object.fromEntries(people.map(x=>[x._id,personMeta(cfg.value,x._id).exclusions]));makeDraw(people,{...cfg.value.options,exclusions});
    return {ok:true,count:people.length,persisted:false,sent:false};
  }
  if(action==='draw'){
    if(await currentDraw())err('Ya existe un sorteo. Anúlalo antes de generar otro.',409);
    const people=(await all(DB.people)).filter(x=>x.year===YEAR&&x.active);
-   const cfg=await getConfig();let fixedGiver='',fixedReceiver='';
-   try{fixedGiver=(await secret(SECRET_NAMES.fixedGiver))||'';}catch(e){}
-   try{fixedReceiver=(await secret(SECRET_NAMES.fixedReceiver))||'';}catch(e){}
-   if(Boolean(fixedGiver)!==Boolean(fixedReceiver))err('Configura ambos secretos de pareja fija o ninguno',503);
+   const cfg=await getConfig();
    const exclusions=Object.fromEntries(people.map(x=>[x._id,personMeta(cfg.value,x._id).exclusions]));
-   const pairs=makeDraw(people,{...cfg.value.options,exclusions,fixedGiver,fixedReceiver});
+   const pairs=makeDraw(people,{...cfg.value.options,exclusions});
    // Solo un registro de sorteo; el campo pairs nunca sale al gestor ni a invitados.
    await wixData.insert(DB.draw,{title:`Sorteo ${YEAR}`,year:YEAR,active:true,pairs,createdAt:new Date()},OPT);
    // Invalidación de códigos anteriores, si los había.

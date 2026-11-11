@@ -19,6 +19,7 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   }[character]));
   const initials = name => String(name || "?").trim().split(/\s+/).slice(0, 2).map(part => part[0] || "").join("").toUpperCase();
+  const avatarHue = name => [...String(name || "")].reduce((total, char) => (total * 31 + char.charCodeAt(0)) % 360, 34);
 
   const state = {
     view: "home",
@@ -34,7 +35,8 @@
     lastIssued: null,
     peopleFilter: "active",
     peopleSearch: "",
-    modal: null
+    modal: null,
+    celebrating: false
   };
 
   const button = (action, label, className = "btn", extra = "") =>
@@ -47,6 +49,16 @@
   function setMessage(error = "", notice = "") {
     state.error = error;
     state.notice = notice;
+  }
+
+  function celebrate() {
+    state.celebrating = true;
+    window.setTimeout(() => { state.celebrating = false; if (state.view === "panel") render(); }, 2400);
+  }
+
+  function celebrationLayer() {
+    if (!state.celebrating) return "";
+    return `<div class="celebration" aria-hidden="true">${Array.from({length:24},(_,i)=>`<i style="--i:${i};--x:${(i*43)%100}%;--d:${(i%7)*.08}s;--r:${(i*71)%360}deg"></i>`).join("")}<span>✦</span></div>`;
   }
 
   function setContent(html) {
@@ -291,7 +303,7 @@
       const angle = (Math.PI * 2 * index / list.length) - Math.PI / 2;
       const left = 50 + Math.cos(angle) * 40;
       const top = 50 + Math.sin(angle) * 40;
-      return `<span class="av" style="left:${left}%;top:${top}%" title="${escapeHtml(person.name)}">${escapeHtml(initials(person.name))}</span>`;
+      return `<span class="av" style="left:${left}%;top:${top}%;--i:${index};--avatar-hue:${avatarHue(person.name)}" title="${escapeHtml(person.name)}">${escapeHtml(initials(person.name))}</span>`;
     }).join("");
     return `<div class="ringwrap">${points}<div class="center"><span class="draw-star">✦</span><b>${active.length} personas</b><small>sin autoasignaciones</small></div></div>`;
   }
@@ -302,8 +314,7 @@
     if (!data.drawReady) {
       return `
         ${card(`<div class="eyebrow">Sorteo</div><h2>Preparar el momento</h2><p class="lead">El sorteo crea una asignación secreta para cada participante y bloquea la lista.</p>${drawRing(active)}
-          <form id="draw-options-form" class="stack-form draw-options"><label class="toggle"><input type="checkbox" name="noMutual" ${data.options?.noMutual !== false ? "checked" : ""}> Evitar parejas recíprocas (A regala a B y B a A)</label>
-          <div class="grid2"><label class="f">Pareja fija: regala<select class="in" name="fixedGiverId"><option value="">Ninguna</option>${active.map(x=>`<option value="${escapeHtml(x._id)}" ${data.options?.fixedGiverId===x._id?"selected":""}>${escapeHtml(x.name)}</option>`).join("")}</select></label><label class="f">Pareja fija: recibe<select class="in" name="fixedReceiverId"><option value="">Ninguna</option>${active.map(x=>`<option value="${escapeHtml(x._id)}" ${data.options?.fixedReceiverId===x._id?"selected":""}>${escapeHtml(x.name)}</option>`).join("")}</select></label></div><button class="btn" type="submit">Guardar reglas</button></form>
+          <form id="draw-options-form" class="stack-form draw-options"><label class="toggle"><input type="checkbox" name="noMutual" ${data.options?.noMutual !== false ? "checked" : ""}> Evitar parejas recíprocas (A regala a B y B a A)</label><button class="btn" type="submit">Guardar regla</button></form>
           <div class="check-list"><p class="${active.length >= 3 ? "checked" : ""}">Hay al menos tres participantes activos</p><p class="checked">Nadie puede regalarse a sí mismo</p><p class="checked">Se respetan las exclusiones personales</p><p class="checked">Los resultados solo serán visibles para Joseba</p></div><div class="btns"><button class="btn" type="button" data-action="testDraw" ${active.length < 3 ? "disabled" : ""}>Probar reglas sin guardar</button><button class="btn primary" type="button" data-action="draw" ${active.length < 3 ? "disabled" : ""}>Realizar sorteo definitivo</button></div><p class="small">La prueba no guarda parejas, no genera códigos y no envía nada.</p>`, "draw-card")}
         ${card(`<h3>Antes de continuar</h3><p class="lead">Revisa nombres y correos. Después del sorteo solo podrás hacer cambios anulándolo, lo que invalidará todos los códigos enviados.</p>`)}
       `;
@@ -326,7 +337,7 @@
     const sent=active.filter(person=>person.sent).length,message=state.lastIssued?deliveryMessage(state.lastIssued):"";
     return `
       ${card(`<div class="section-title"><div><div class="eyebrow">Entrega privada</div><h2>Invitaciones personales</h2></div><span class="count-badge">${sent}/${active.length} enviados</span></div><div class="progress-track"><span style="width:${active.length?sent*100/active.length:0}%"></span></div><p class="lead">Genera el código, envía el mensaje y marca la entrega. Al regenerar, el anterior deja de funcionar.</p>${state.lastIssued ? `<div class="issued-code"><div><small>Invitación nueva para</small><strong>${escapeHtml(state.lastIssued.name)}</strong></div><code id="generated-code">${escapeHtml(state.lastIssued.code)}</code><textarea id="delivery-message" readonly>${escapeHtml(message)}</textarea><div class="btns">${button("copyMessage", "Copiar mensaje", "btn gold")}${button("whatsappMessage", "WhatsApp", "btn primary")}${state.lastIssued.email?`<a class="btn" href="mailto:${encodeURIComponent(state.lastIssued.email)}?subject=${encodeURIComponent(state.info.event?.name||"Amigo invisible Aboiz")}&body=${encodeURIComponent(message)}">Correo</a>`:""}</div><p>Se muestra una sola vez. Envía o copia el mensaje antes de continuar.</p></div>` : ""}`)}
-      ${card(`<div class="code-list">${active.map(person => `<article><span class="person-avatar">${escapeHtml(initials(person.name))}</span><div><strong>${escapeHtml(person.name)}</strong><small>${person.sent?"Invitación entregada":person.hasCode?"Código activo, pendiente de envío":"Pendiente de generar"}</small></div><span class="mini-pill ${person.sent ? "yes" : ""}">${person.sent?"Enviado":person.hasCode?"Emitido":"Pendiente"}</span>${button("issue:" + person._id, person.hasCode ? "Regenerar" : "Generar", "btn mini " + (person.hasCode ? "" : "primary"))}${person.hasCode?button("delivered:"+person._id,person.sent?"Desmarcar":"Marcar enviado","btn mini"):""}</article>`).join("")}</div>`)}
+      ${card(`<div class="code-list">${active.map(person => `<article><span class="person-avatar" style="--avatar-hue:${avatarHue(person.name)}">${escapeHtml(initials(person.name))}</span><div><strong>${escapeHtml(person.name)}</strong><small>${person.sent?"Invitación entregada":person.hasCode?"Código activo, pendiente de envío":"Pendiente de generar"}</small></div><span class="mini-pill ${person.sent ? "yes" : ""}">${person.sent?"Enviado":person.hasCode?"Emitido":"Pendiente"}</span>${button("issue:" + person._id, person.hasCode ? "Regenerar" : "Generar", "btn mini " + (person.hasCode ? "" : "primary"))}${person.hasCode?button("delivered:"+person._id,person.sent?"Desmarcar":"Marcar enviado","btn mini"):""}</article>`).join("")}</div>`)}
     `;
   }
 
@@ -337,7 +348,7 @@
     const percent = active.length ? Math.round(completed.length * 100 / active.length) : 0;
     return `
       ${card(`<div class="section-title"><div><div class="eyebrow">Preferencias</div><h2>Seguimiento de deseos</h2></div><span class="count-badge">${percent}%</span></div><p class="lead">Puedes comprobar quién ha guardado preferencias, pero su contenido solo se muestra a la persona que le regala.</p><div class="progress-track" aria-label="${percent}% completado"><span style="width:${percent}%"></span></div><p><b>${completed.length}</b> de <b>${active.length}</b> participantes han añadido algo. La lista es opcional.</p>`)}
-      ${card(`<div class="wish-status-list">${active.map(person => `<article><span class="person-avatar">${escapeHtml(initials(person.name))}</span><strong>${escapeHtml(person.name)}</strong><span class="mini-pill ${person.hasWish ? "yes" : ""}">${person.hasWish ? "Lista preparada" : "Sin preferencias"}</span></article>`).join("")}</div>`)}
+      ${card(`<div class="wish-status-list">${active.map(person => `<article><span class="person-avatar" style="--avatar-hue:${avatarHue(person.name)}">${escapeHtml(initials(person.name))}</span><strong>${escapeHtml(person.name)}</strong><span class="mini-pill ${person.hasWish ? "yes" : ""}">${person.hasWish ? "Lista preparada" : "Sin preferencias"}</span></article>`).join("")}</div>`)}
     `;
   }
 
@@ -411,7 +422,7 @@
         state.section === "draw" ? adminDraw() :
         state.section === "delivery" ? adminCodes() : staffWishes();
     }
-    return `<div class="panel-shell ${state.busy ? "overlay-wait" : ""}">${panelHeader()}<div class="enter">${content}</div></div>${panelNavigation()}${renderModal()}`;
+    return `<div class="panel-shell ${state.busy ? "overlay-wait" : ""}">${panelHeader()}<div class="enter">${content}</div></div>${panelNavigation()}${celebrationLayer()}${renderModal()}`;
   }
 
   function renderModal() {
@@ -461,7 +472,7 @@
   async function performConfirmed(action) {
     state.modal = null;
     if (action === "draw") {
-      await task(async () => { await request("draw"); await refresh(); state.section = "draw"; setMessage("", "Sorteo realizado y participantes bloqueados."); });
+      await task(async () => { await request("draw"); await refresh(); state.section = "draw"; celebrate(); setMessage("", "Sorteo realizado y participantes bloqueados."); });
     } else if (action === "resetDraw") {
       await task(async () => { await request("invalidateDraw"); state.lastIssued = null; await refresh(); state.section = "overview"; setMessage("", "Sorteo anulado y códigos invalidados."); });
     } else if (action.startsWith("remove:")) {
@@ -505,7 +516,7 @@
     } else if (form.id === "event-form") {
       task(async () => { await request("saveEvent", {event:{name:values.get("name"),date:values.get("date"),place:values.get("place"),min:Number(values.get("min")),max:Number(values.get("max")),message:values.get("message"),appUrl:values.get("appUrl")}});await refresh();setMessage("","Datos del evento guardados."); });
     } else if (form.id === "draw-options-form") {
-      task(async () => { await request("saveDrawOptions",{noMutual:values.has("noMutual"),fixedGiverId:values.get("fixedGiverId"),fixedReceiverId:values.get("fixedReceiverId")});await refresh();setMessage("","Reglas del sorteo guardadas."); });
+      task(async () => { await request("saveDrawOptions",{noMutual:values.has("noMutual")});await refresh();setMessage("","Regla del sorteo guardada."); });
     } else if (form.id === "wish-form") {
       task(async () => {
         await request("saveWish", { selected: values.getAll("cat"), other: String(values.get("other")) });
@@ -552,7 +563,7 @@
     if(action==="whatsappMessage"&&state.lastIssued){window.open("https://wa.me/?text="+encodeURIComponent(deliveryMessage(state.lastIssued)),"_blank","noopener,noreferrer");return;}
     if(action.startsWith("delivered:")){const id=action.slice(10),person=state.info.people.find(x=>x._id===id);task(async()=>{await request("markDelivered",{id,sent:!person.sent});await refresh();setMessage("",person.sent?"Entrega desmarcada.":"Entrega marcada como enviada.");});return;}
     if (action === "draw") { confirmAction("Realizar el sorteo", "La lista quedará bloqueada y se creará una asignación secreta para cada participante.", "draw", "Realizar sorteo"); return; }
-    if (action === "testDraw") { task(async () => { const result=await request("testDraw"); setMessage("", `Prueba correcta: ${result.count} participantes, sin guardar resultados ni enviar nada.`); }); return; }
+    if (action === "testDraw") { task(async () => { const result=await request("testDraw"); celebrate(); setMessage("", `Prueba correcta: ${result.count} participantes, sin guardar resultados ni enviar nada.`); }); return; }
     if (action === "resetDraw") { confirmAction("Anular el sorteo", "Se invalidarán todos los códigos personales enviados. Esta acción no se puede deshacer.", "resetDraw", "Anular definitivamente", true); return; }
     if (action.startsWith("issue:")) {
       const person = state.info.people.find(item => item._id === action.slice(6));

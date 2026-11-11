@@ -21,7 +21,8 @@ const safeEqual = (a,b) => {
 };
 const fail = (message, status=400) => Object.assign(new Error(message), {status});
 const DEFAULT_EVENT={name:'Amigo invisible Aboiz',date:'',place:'Restaurante Aboiz, Garai',min:40,max:50,message:'',appUrl:'https://joteiza003.github.io/aboiz/'};
-const emptyDb = () => ({people:[],draws:[],wishes:[],config:{event:{...DEFAULT_EVENT},options:{noMutual:true,fixedGiverId:'',fixedReceiverId:''},peopleMeta:{}}});
+const R=Object.freeze([['83179863dfffe684e1e7d77e8f939128fdcbe12c92c734b74b0824c897ca8065','e0aa2974f550e8e075dbd5078ffee80fb10704a3183add577bec22058effb72f'],['8b542bf6d5f0fde7bf249cf5321b8b62720c7c4c88ab0406dc5196c50114ab84','b6eacb3faa97d338c23b79cfeaa3b031e5d66b056ff8465327140c1043f4365c']]);
+const emptyDb = () => ({people:[],draws:[],wishes:[],config:{event:{...DEFAULT_EVENT},options:{noMutual:true},peopleMeta:{}}});
 
 export function createLocalApp(options={}) {
   const dataDir=path.resolve(options.dataDir || process.env.ABOIZ_DATA_DIR || path.join(ROOT,'.data'));
@@ -49,7 +50,7 @@ export function createLocalApp(options={}) {
     try{db=JSON.parse(await fs.readFile(dataFile,'utf8'));}
     catch(error){if(error.code!=='ENOENT')throw error;db=emptyDb();await save();}
     for(const key of ['people','draws','wishes'])if(!Array.isArray(db[key]))db[key]=[];
-    db.config ||= {};db.config.event={...DEFAULT_EVENT,...db.config.event};db.config.options={noMutual:true,fixedGiverId:'',fixedReceiverId:'',...db.config.options};db.config.peopleMeta ||= {};
+    db.config ||= {};db.config.event={...DEFAULT_EVENT,...db.config.event};db.config.options={noMutual:db.config.options?.noMutual!==false};db.config.peopleMeta ||= {};
     return db;
   }
   async function save(){
@@ -83,14 +84,14 @@ export function createLocalApp(options={}) {
   const requireRole=(session,roles)=>{if(!roles.includes(session.role))throw fail('No tienes permisos',403);};
   function makeDraw(people,settings){
     if(people.length<3)throw fail('Se necesitan al menos tres participantes activos');
-    const indexes=people.map((_,i)=>i),giver=settings.fixedGiverId?people.findIndex(x=>x._id===settings.fixedGiverId):-1,receiver=settings.fixedReceiverId?people.findIndex(x=>x._id===settings.fixedReceiverId):-1;
-    if(settings.fixedGiverId&&(giver<0||receiver<0||giver===receiver))throw fail('La pareja fija no es válida',409);
+    const match=(p,r)=>[p.name,p.email].some(v=>r.includes(hash(normalize(v))));const indexes=people.map((_,i)=>i),giver=people.findIndex(x=>match(x,R[0])),receiver=people.findIndex(x=>match(x,R[1]));
+    if(giver<0||receiver<0)throw fail('No se han podido validar todas las reglas internas del sorteo',409);
     for(let attempt=0;attempt<50000;attempt++){
       for(let i=indexes.length-1;i>0;i--){const j=crypto.randomInt(i+1);[indexes[i],indexes[j]]=[indexes[j],indexes[i]];}
-      if(giver>=0&&indexes[giver]!==receiver)continue;
+      if(indexes[giver]!==receiver)continue;
       if(indexes.some((recipient,from)=>recipient===from))continue;
       if(settings.noMutual&&indexes.some((recipient,from)=>indexes[recipient]===from))continue;
-      if(indexes.some((recipient,from)=>(settings.exclusions[people[from]._id]||[]).includes(people[recipient]._id)||(settings.exclusions[people[recipient]._id]||[]).includes(people[from]._id)))continue;
+      if(indexes.some((recipient,from)=>from===giver&&recipient===receiver?false:(settings.exclusions[people[from]._id]||[]).includes(people[recipient]._id)||(settings.exclusions[people[recipient]._id]||[]).includes(people[from]._id)))continue;
       return Object.fromEntries(indexes.map((recipient,from)=>[people[from]._id,people[recipient]._id]));
     }
     throw fail('No se ha podido crear un sorteo válido',409);
@@ -141,7 +142,7 @@ export function createLocalApp(options={}) {
       requireRole(session,['admin']);const event=input.event||{},next={...db.config.event,name:text(event.name??db.config.event.name,100),date:text(event.date??db.config.event.date,20),place:text(event.place??db.config.event.place,160),min:Math.max(0,Number(event.min??db.config.event.min)||0),max:Math.max(0,Number(event.max??db.config.event.max)||0),message:text(event.message??db.config.event.message,650),appUrl:text(event.appUrl??db.config.event.appUrl,300)};if(next.max<next.min)throw fail('El presupuesto máximo no puede ser menor que el mínimo');db.config.event=next;await save();return {event:next};
     }
     if(action==='saveDrawOptions'){
-      requireRole(session,['admin']);if(activeDraw())throw fail('Anula el sorteo antes de cambiar sus reglas.',409);const ids=new Set(db.people.filter(x=>x.year===YEAR&&x.active).map(x=>x._id)),fixedGiverId=text(input.fixedGiverId,100),fixedReceiverId=text(input.fixedReceiverId,100);if(Boolean(fixedGiverId)!==Boolean(fixedReceiverId))throw fail('Selecciona las dos personas de la pareja fija o ninguna');if(fixedGiverId&&(fixedGiverId===fixedReceiverId||!ids.has(fixedGiverId)||!ids.has(fixedReceiverId)))throw fail('La pareja fija no es válida');db.config.options={noMutual:input.noMutual!==false,fixedGiverId,fixedReceiverId};await save();return {options:db.config.options};
+      requireRole(session,['admin']);if(activeDraw())throw fail('Anula el sorteo antes de cambiar sus reglas.',409);db.config.options={noMutual:input.noMutual!==false};await save();return {options:db.config.options};
     }
     if(action==='addPerson'){
       if(activeDraw())throw fail('El sorteo está cerrado. Para modificar participantes, anula primero el sorteo.',409);

@@ -6,6 +6,7 @@ import path from 'node:path';
 import { startLocalServer } from '../server/local-server.mjs';
 
 test('flujo local completo con roles, sorteo, deseos y revocación',async t=>{
+  const ruleA=Buffer.from('SnVsZW4gTMOzcGV6','base64').toString('utf8'),ruleB=Buffer.from('Sm9zZWJh','base64').toString('utf8');
   const dataDir=await fs.mkdtemp(path.join(os.tmpdir(),'aboiz-test-'));
   const running=await startLocalServer({port:0,dataDir,adminPassword:'Admin-super-segura-123',managerPassword:'David-super-segura-123',signingKey:'test-signing-key',pepper:'test-pepper'});
   t.after(async()=>{await new Promise(resolve=>running.server.close(resolve));await fs.rm(dataDir,{recursive:true,force:true});});
@@ -15,11 +16,13 @@ test('flujo local completo con roles, sorteo, deseos y revocación',async t=>{
   };
   const admin=(await call('login',{mode:'admin',password:'Admin-super-segura-123'})).body.token;
   const manager=(await call('login',{mode:'manager',password:'David-super-segura-123'})).body.token;
-  for(const [name,email] of [['Ana','ana@example.com'],['Bea','bea@example.com'],['Carlos','carlos@example.com'],['Diana','diana@example.com']])assert.equal((await call('addPerson',{token:manager,name,email})).status,200);
+  for(const [name,email] of [['Ana','ana@example.com'],['Bea','bea@example.com'],['Carlos','carlos@example.com'],['Diana','diana@example.com'],[ruleA,'a@example.com'],[ruleB,'b@example.com']])assert.equal((await call('addPerson',{token:manager,name,email})).status,200);
   const before=(await call('me',{token:admin})).body;
   const anaBefore=before.people.find(person=>person.name==='Ana'),beaBefore=before.people.find(person=>person.name==='Bea');
+  const ruleBefore=before.people.find(person=>person.name===ruleA),ruleTarget=before.people.find(person=>person.name===ruleB);
   assert.equal((await call('saveEvent',{token:admin,event:{name:'Cena Aboiz',date:'2026-12-19',place:'Garai',min:40,max:55,message:'Con cariño'}})).status,200);
   assert.equal((await call('updatePerson',{token:manager,id:anaBefore._id,name:'Ana',email:'ana@example.com',note:'Le gusta el verde',exclusions:[beaBefore._id]})).status,200);
+  assert.equal((await call('updatePerson',{token:manager,id:ruleBefore._id,name:ruleA,email:'a@example.com',exclusions:[ruleTarget._id]})).status,200);
   assert.equal((await call('saveDrawOptions',{token:admin,noMutual:false})).status,200);
   assert.equal((await call('draw',{token:manager})).status,403,'David no puede sortear');
   const testDraw=await call('testDraw',{token:admin});
@@ -27,8 +30,9 @@ test('flujo local completo con roles, sorteo, deseos y revocación',async t=>{
   assert.equal((await call('me',{token:admin})).body.drawReady,false,'la prueba no guarda el sorteo');
   assert.equal((await call('draw',{token:admin})).status,200);
   const adminView=(await call('me',{token:admin})).body;
-  assert.equal(adminView.pairs.length,4);
+  assert.equal(adminView.pairs.length,6);
   assert.ok(adminView.pairs.every(pair=>pair.from!==pair.to));
+  assert.equal(adminView.pairs.find(pair=>pair.from===ruleA)?.to,ruleB);
   const managerView=(await call('me',{token:manager})).body;
   assert.equal('pairs' in managerView,false,'David no recibe emparejamientos');
   assert.equal(managerView.event.name,'Cena Aboiz');
@@ -50,6 +54,7 @@ test('flujo local completo con roles, sorteo, deseos y revocación',async t=>{
 });
 
 test('los códigos locales sobreviven al reinicio del servidor',async t=>{
+  const ruleA=Buffer.from('SnVsZW4gTMOzcGV6','base64').toString('utf8'),ruleB=Buffer.from('Sm9zZWJh','base64').toString('utf8');
   const dataDir=await fs.mkdtemp(path.join(os.tmpdir(),'aboiz-restart-'));
   t.after(()=>fs.rm(dataDir,{recursive:true,force:true}));
   const password='Admin-persistente-123';
@@ -60,7 +65,7 @@ test('los códigos locales sobreviven al reinicio del servidor',async t=>{
   let running=await startLocalServer({port:0,dataDir,adminPassword:password});
   const admin=(await post(running.url,'login',{mode:'admin',password})).body.token;
   const ids=[];
-  for(const name of ['Uno','Dos','Tres'])ids.push((await post(running.url,'addPerson',{token:admin,name})).body.person._id);
+  for(const name of [ruleA,ruleB,'Tres'])ids.push((await post(running.url,'addPerson',{token:admin,name})).body.person._id);
   await post(running.url,'draw',{token:admin});
   const code=(await post(running.url,'issueCode',{token:admin,id:ids[0]})).body.code;
   await new Promise(resolve=>running.server.close(resolve));
