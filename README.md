@@ -12,12 +12,9 @@ Requiere Node.js 20 o posterior. Desde esta carpeta:
 npm start
 ```
 
-Abre `http://127.0.0.1:4173`. Los accesos iniciales de desarrollo son:
+Abre `http://127.0.0.1:4173`. En el primer arranque se generan accesos locales aleatorios para Joseba y David y se muestran en la consola.
 
-- Joseba: `Joseba-Aboiz-2026!`
-- David: `David-Aboiz-2026!!`
-
-Los datos persisten en `.data/aboiz.json`; las claves internas locales quedan en `.data/secrets.json`. La carpeta `.data/` está excluida de Git. Para elegir contraseñas propias antes de arrancar:
+Los datos persisten en `.data/aboiz.json`; las claves internas y accesos locales quedan en `.data/secrets.json`. La carpeta `.data/` está excluida de Git. Para elegir contraseñas propias antes de arrancar:
 
 ```powershell
 $env:ABOIZ_ADMIN_PASSWORD = 'TU_CONTRASEÑA_DE_16_O_MÁS_CARACTERES'
@@ -48,7 +45,7 @@ Tres colecciones CMS exclusivas con permisos ADMIN: `AI26_Participantes`, `AI26_
 
 ### Límites conocidos
 
-- **No hay envío automático de correo o WhatsApp**: Joseba copia códigos y los envía manualmente por un canal privado. Así evitamos permisos y servicios externos.
+- **No se envían mensajes automáticamente**: el panel prepara el texto y abre correo o WhatsApp para que Joseba revise y confirme el envío manualmente. Así evitamos servicios externos y envíos accidentales.
 - El endpoint HTTP Velo recibe llamadas externas desde el navegador mediante CORS; debe confirmarse en el sitio publicado real, pues Wix documenta estos endpoints principalmente para integraciones server-to-server.
 - La comprobación de sintaxis/estructura local **no reemplaza las pruebas en Wix**. No se ha desplegado ni ensayado una transacción real con tu CMS.
 - Si hay varios administradores simultáneos, las operaciones de sorteo y edición no son transaccionales; se recomienda un único operador durante la generación del sorteo.

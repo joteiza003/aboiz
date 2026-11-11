@@ -73,8 +73,10 @@ Puedes generar claves aleatorias en PowerShell sin subirlas a Internet:
 
 ```powershell
 $b = New-Object byte[] 48
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($b)
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($b)
 [Convert]::ToBase64String($b)
+$rng.Dispose()
 ```
 
 Ejecuta dos veces y guarda valores distintos para SIGNING_KEY y CODE_PEPPER. No publiques esas salidas en GitHub. Wix puede requerir habilitar Secrets Manager; revisa los permisos de tu plan.
@@ -107,7 +109,7 @@ Para comprobar CORS y el backend: abre las herramientas de desarrollador (F12), 
 
 ## 8 · Publicar de verdad
 
-Una vez superadas las pruebas, introduce participantes reales, genera sorteo, comprueba resultados solo como Joseba y envía individualmente cada código. El panel permite copiar códigos, **no envía mensajes ni correos automáticamente**. No envíes contraseñas administrativas a participantes.
+Una vez superadas las pruebas, introduce participantes reales, genera sorteo, comprueba resultados solo como Joseba y prepara individualmente cada invitación. El panel permite copiar el mensaje y abrir correo o WhatsApp, pero **el envío final siempre lo confirma Joseba**. No envíes contraseñas administrativas a participantes.
 
 ## 9 · Precauciones
 

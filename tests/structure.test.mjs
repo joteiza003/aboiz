@@ -11,6 +11,11 @@ test('HTML bloquea indexación y tiene tres opciones',()=>{
  const s=read('index.html'),js=read('assets/app.js');assert.match(s,/noindex/);
  for(const val of ['choose-admin','choose-manager','choose-guest'])assert.ok(js.includes(val));
 });
+test('la interfaz separa evento, sorteo, entrega y permisos',()=>{
+ const js=read('assets/app.js');
+ for(const val of ['adminEvent','saveDrawOptions','markDelivered','deliveryMessage','fixedGiverId','exclusions'])assert.ok(js.includes(val));
+ assert.match(js,/state\.role === "admin"/);assert.match(js,/David no puede ver/);
+});
 test('el modo local está configurado y sus datos no entran en Git',()=>{
  const pkg=JSON.parse(read('package.json'));assert.equal(pkg.scripts.start,'node server/local-server.mjs');
  assert.match(read('assets/app.js'),/\/api\/aboiz26/);assert.match(read('.gitignore'),/^\.data\/$/m);

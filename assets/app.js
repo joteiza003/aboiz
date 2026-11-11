@@ -1,108 +1,589 @@
-/* Aboiz GitHub Pages: interfaz pública. NINGÚN resultado o secreto se almacena aquí. */
+/* Aboiz GitHub Pages: interfaz pública. Ningún resultado o secreto se almacena aquí. */
 (() => {
-'use strict';
-const app=document.getElementById('app');
-const CATS=[['moda','Ropa y complementos'],['belleza','Belleza y cuidado personal'],['hogar','Decoración, hogar y cocina'],['ocio','Libros, música y entretenimiento'],['tecnologia','Tecnología y accesorios'],['gastronomia','Gastronomía y experiencias'],['aficiones','Deporte, naturaleza y aficiones']];
-const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const state={view:'home',token:sessionStorage.getItem('aboiz_auth')||'',role:sessionStorage.getItem('aboiz_role')||'',info:null,opened:false,notice:'',error:'',busy:false,lastIssued:null};
-const config=window.ABOIZ_CONFIG||{};
-// Sin URL explícita se usa el servidor local incluido. En GitHub Pages hay que
-// indicar la URL HTTPS de Wix en config.js.
-const apiUrl=String(config.apiUrl||'/api/aboiz26').trim();
-const btn=(action,label,cls='btn')=>`<button type="button" class="${cls}" data-action="${action}">${label}</button>`;
-function message(){return `${state.error?`<div class="error" role="alert">${escape(state.error)}</div>`:''}${state.notice?`<div class="success">${escape(state.notice)}</div>`:''}`;}
-function setMsg(error='',notice=''){state.error=error;state.notice=notice;}
-function el(html){app.innerHTML=html;window.scrollTo({top:0,behavior:'instant'});}
-async function req(action,params={}){
- if(!(/^https:\/\/[^\s]+\/_functions\/aboiz26\/?$/.test(apiUrl)||apiUrl==='/api/aboiz26'))throw new Error('La URL del backend no es válida. Revisa config.js.');
- const resp=await fetch(apiUrl,{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',referrerPolicy:'no-referrer',body:JSON.stringify({action,token:state.token,...params})});
- let data;try{data=await resp.json();}catch{throw new Error('El servidor no devolvió JSON. Comprueba que la aplicación esté arrancada.');}
- if(!resp.ok)throw new Error(data.error||'Error de conexión');
- return data;
-}
-async function task(f){if(state.busy)return;state.busy=true;setMsg();try{await f();}catch(e){setMsg(e.message||'Error inesperado');}finally{state.busy=false;render();}}
-const card=(inside)=>`<section class="card">${inside}</section>`;
-function render(){
- let h='';
- if(state.view==='home'){
-   h=card(`<h2>¿Cómo quieres acceder?</h2><p class="lead">Una sola web. Tres formas de participar.</p>${message()}<div class="auth-grid">
-    ${btn('choose-admin','Administración · Joseba　›','btn auth-choice')}
-    ${btn('choose-manager','Participantes · David　›','btn auth-choice')}
-    ${btn('choose-guest','Código personal · Abrir mi regalo　›','btn auth-choice primary')}
-   </div><p class="small">Las secciones son privadas. No compartas tus claves o códigos.</p>`);
- } else if(state.view==='login'){
-   const admin=state.loginMode==='admin';
-   h=card(`<h2>${admin?'Administración':'Participantes'}</h2><p class="lead">${admin?'Acceso exclusivo de Joseba.':'Gestión de participantes · David.'}</p>${message()}
-    <form id="login-form"><label class="f">Contraseña<input class="in" name="password" type="password" minlength="16" autocomplete="current-password" required></label><div class="btns"><button class="btn primary" type="submit">Entrar</button>${btn('home','Volver')}</div></form>`);
- } else if(state.view==='code'){
-   h=card(`<h2>Introduce tu código</h2><p class="lead">Es personal y secreto. Permite consultar tus deseos y abrir la caja.</p>${message()}<form id="code-form"><label class="f">Código de acceso<input class="in" name="code" autocomplete="off" autocapitalize="none" spellcheck="false" required placeholder="AB26-…"></label><div class="btns"><button class="btn primary" type="submit">Continuar</button>${btn('home','Volver')}</div></form>`);
- } else if(state.view==='panel'){
-    if(!state.info)h=card(`<h2>Conectando…</h2>${message()}`);
-    else if(state.role==='guest')h=guestPanel();
-    else h=staffPanel();
- }
- el(h);
-}
-function staffPanel(){
- const d=state.info,admin=state.role==='admin';
- let h=card(`<div class="split"><h2>${admin?'Administración · Joseba':'Participantes · David'}</h2>${btn('logout','Salir')}</div>
- <p class="lead">${d.people.length} registros · ${d.people.filter(x=>x.active).length} activos · ${d.wishesFilled||0} listas con preferencias.</p>
- ${message()}<p class="${d.drawReady?'warn':'ok'}">${d.drawReady?'Sorteo realizado. Los cambios de participantes están bloqueados.':'Sorteo pendiente. Se pueden añadir y editar participantes.'}</p>
- <h3>Añadir participante</h3><form id="add-form" class="grid2"><label class="f">Nombre<input class="in" name="name" required maxlength="100"></label><label class="f">Correo (opcional)<input type="email" class="in" name="email" maxlength="160"></label><button class="btn primary" type="submit" ${d.drawReady?'disabled':''}>Añadir</button></form>`);
- if(admin){
-    h+=card(`<h2>Sorteo y códigos</h2><p class="lead">Los códigos se generan individualmente. Al regenerar un código, el anterior queda invalidado. Guarda o envía el nuevo en el momento: después no se podrá recuperar.</p><div class="btns">${!d.drawReady?btn('draw','Realizar sorteo','btn primary'):btn('resetDraw','Anular sorteo y códigos','btn')}</div>
-    ${state.lastIssued?`<div class="code-out"><strong>Código nuevo para ${escape(state.lastIssued.name)}</strong><p id="generated-code">${escape(state.lastIssued.code)}</p>${btn('copyCode','Copiar código')}</div>`:''}`);
- }
- h+=card(`<h2>Participantes</h2><div class="scroll-x"><table class="data-table"><thead><tr><th>Nombre</th><th>Correo</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
- ${d.people.map(x=>`<tr><td>${escape(x.name)}</td><td>${escape(x.email||'—')}</td><td>${x.active?'Activo':'Inactivo'}</td><td><div class="btns">${!d.drawReady&&x.active?`${btn('edit:'+x._id,'Editar')}${btn('remove:'+x._id,'Retirar')}`:''}${admin&&x.active&&d.drawReady?btn('issue:'+x._id,'Generar código'):''}</div></td></tr>`).join('')}
- </tbody></table></div>`);
- if(admin&&d.drawReady){
-   h+=card(`<details><summary>Consultar emparejamientos · Solo Joseba</summary><p class="warn">Los resultados son confidenciales.</p><div class="scroll-x"><table class="data-table"><thead><tr><th>Regala</th><th>A</th></tr></thead><tbody>${(d.pairs||[]).map(x=>`<tr><td>${escape(x.from)}</td><td>${escape(x.to)}</td></tr>`).join('')}</tbody></table></div></details>`);
- }
- return h;
-}
-function wishSummary(w){if(!w?.selected?.length&&!w?.other)return '<p class="lead">Esta persona todavía no ha indicado preferencias.</p>';
- return `<div class="wish-summary">${(w.selected||[]).map(k=>{const c=CATS.find(x=>x[0]===k);return c?`<article><b>${escape(c[1])}</b></article>`:'';}).join('')}${w.other?`<article><b>Preferencias o cosas a evitar</b><p>${escape(w.other)}</p></article>`:''}</div>`;
-}
-function guestPanel(){
- const d=state.info,w=d.myWishes||{selected:[],other:''};
- const tile=CATS.map(([key,title])=>`<label class="wish-tile"><input type="checkbox" name="cat" value="${key}" ${w.selected?.includes(key)?'checked':''}><span>${escape(title)}</span></label>`).join('');
- return card(`<div class="split"><h2>Hola, ${escape(d.person.name)}</h2>${btn('logout','Salir')}</div>${message()}
- <details class="wish-dropdown" id="wish-details"><summary>Mi lista de deseos · Opcional</summary><form id="wish-form" class="wish-wrap">
- <p class="lead">Puedes elegir cero, una o varias categorías, escribir alguna preferencia o no rellenar nada.</p><div class="wish-grid">${tile}</div>
- <label class="f">Preferencias o cosas que evitar (opcional)<textarea name="other" maxlength="650" placeholder="Colores, tallas, gustos o cosas que prefieres evitar…">${escape(w.other||'')}</textarea></label>
- <button class="btn gold" type="submit">Guardar preferencias</button></form></details>
- ${!d.drawReady?`<p class="warn">El sorteo todavía no se ha realizado.</p>`:state.opened?
- `<section class="reveal"><h3>Te toca regalar a</h3><div class="giftee pop">${escape(d.gift?.name||'Pendiente')}</div><h3>Sus deseos</h3>${wishSummary(d.gift?.wishes)}<div class="btns">${btn('refreshGift','Actualizar deseos')}${btn('hideGift','Ocultar el nombre')}</div></section>`:
- `<section class="reveal"><h3>Un regalo para ti</h3><div class="unveil-stage"><div class="glow-halo"></div><div class="magic-sparks" aria-hidden="true">✧ <i>✦</i> ✧ <i>✶</i> ✧</div><button type="button" class="giftbox" data-action="openGift" aria-label="Abrir la caja de regalo"><span class="gift-shadow"></span><span class="body"></span><span class="lid"></span><span class="bow"></span></button><div class="stage-label">TOCA LA CAJA</div></div><p class="lead">Comprueba que nadie mire la pantalla antes de abrirla.</p></section>`}
- `);
-}
-function setLogin(role,token){state.role=role;state.token=token;sessionStorage.setItem('aboiz_auth',token);sessionStorage.setItem('aboiz_role',role);state.view='panel';state.opened=false;}
-function logout(){state.token='';state.role='';state.info=null;state.lastIssued=null;state.view='home';state.opened=false;sessionStorage.removeItem('aboiz_auth');sessionStorage.removeItem('aboiz_role');}
-async function refresh(){state.info=await req('me');}
-app.addEventListener('submit',e=>{
- e.preventDefault();const form=e.target;const v=new FormData(form);
- if(form.id==='login-form')task(async()=>{const r=await req('login',{mode:state.loginMode,password:String(v.get('password'))});setLogin(r.role,r.token);await refresh();});
- else if(form.id==='code-form')task(async()=>{const r=await req('codeLogin',{code:String(v.get('code'))});setLogin(r.role,r.token);await refresh();});
- else if(form.id==='add-form')task(async()=>{await req('addPerson',{name:v.get('name'),email:v.get('email')});setMsg('','Participante añadido');await refresh();});
- else if(form.id==='wish-form')task(async()=>{const selected=v.getAll('cat');await req('saveWish',{selected,other:String(v.get('other'))});await refresh();setMsg('','Preferencias guardadas');});
-});
-app.addEventListener('click',e=>{
- const button=e.target.closest('button[data-action]');if(!button)return;
- const act=button.dataset.action;
- if(act==='home'){state.view='home';setMsg();render();return;}
- if(act==='choose-admin'||act==='choose-manager'){state.view='login';state.loginMode=act==='choose-admin'?'admin':'manager';setMsg();render();return;}
- if(act==='choose-guest'){state.view='code';setMsg();render();return;}
- if(act==='logout'){logout();render();return;}
- if(act==='openGift'){state.opened=true;render();return;}
- if(act==='hideGift'){state.opened=false;render();return;}
- if(act==='refreshGift'){task(async()=>{await refresh();setMsg('','Deseos actualizados');});return;}
- if(act==='copyCode'){const c=state.lastIssued?.code;if(c)navigator.clipboard.writeText(c).then(()=>{setMsg('','Código copiado');render();}).catch(()=>{setMsg('No se pudo copiar. Selecciona el código manualmente.');render();});return;}
- if(act==='draw'){if(!confirm('¿Confirmas el sorteo? Se bloqueará la edición de participantes.'))return;task(async()=>{await req('draw');await refresh();setMsg('','Sorteo realizado');});return;}
- if(act==='resetDraw'){if(!confirm('¿ANULAR el sorteo? Se invalidarán todos los códigos enviados. Esta acción no se puede deshacer.'))return;task(async()=>{await req('invalidateDraw');state.lastIssued=null;await refresh();setMsg('','Sorteo anulado; códigos invalidados');});return;}
- if(act.startsWith('issue:')){const id=act.slice(6);if(!confirm('Se invalidará el código anterior de esta persona. ¿Continuar?'))return;task(async()=>{state.lastIssued=await req('issueCode',{id});await refresh();setMsg('','Copia el código ahora; no se mostrará de nuevo.');});return;}
- if(act.startsWith('remove:')){const id=act.slice(7);if(!confirm('¿Retirar participante?'))return;task(async()=>{await req('removePerson',{id});await refresh();setMsg('','Participante desactivado');});return;}
- if(act.startsWith('edit:')){const id=act.slice(5),p=state.info.people.find(x=>x._id===id);if(!p)return;const name=prompt('Nombre:',p.name);if(name===null)return;const email=prompt('Correo (opcional):',p.email||'');if(email===null)return;task(async()=>{await req('updatePerson',{id,name,email});await refresh();setMsg('','Participante actualizado');});return;}
-});
-(async()=>{if(state.token&&state.role){state.view='panel';try{await refresh();}catch(e){logout();setMsg('La sesión ha caducado. Accede de nuevo.');}}render();})();
+  "use strict";
+
+  const app = document.getElementById("app");
+  const categories = [
+    ["moda", "Ropa y complementos", "Tallas, colores o estilos favoritos"],
+    ["belleza", "Belleza y cuidado", "Perfumes, cosmética o autocuidado"],
+    ["hogar", "Hogar y cocina", "Decoración, utensilios o pequeños caprichos"],
+    ["ocio", "Libros y entretenimiento", "Lecturas, música, cine o juegos"],
+    ["tecnologia", "Tecnología", "Accesorios y pequeños dispositivos"],
+    ["gastronomia", "Gastronomía", "Sabores, productos o experiencias"],
+    ["aficiones", "Aficiones", "Deporte, naturaleza y tiempo libre"]
+  ];
+  const config = window.ABOIZ_CONFIG || {};
+  const apiUrl = String(config.apiUrl || "/api/aboiz26").trim();
+  const eventYear = String(config.year || 2026);
+  const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[character]));
+  const initials = name => String(name || "?").trim().split(/\s+/).slice(0, 2).map(part => part[0] || "").join("").toUpperCase();
+
+  const state = {
+    view: "home",
+    section: "overview",
+    loginMode: "",
+    token: sessionStorage.getItem("aboiz_auth") || "",
+    role: sessionStorage.getItem("aboiz_role") || "",
+    info: null,
+    opened: false,
+    notice: "",
+    error: "",
+    busy: false,
+    lastIssued: null,
+    peopleFilter: "active",
+    peopleSearch: "",
+    modal: null
+  };
+
+  const button = (action, label, className = "btn", extra = "") =>
+    `<button type="button" class="${className}" data-action="${action}" ${extra}>${label}</button>`;
+  const card = (content, className = "") => `<section class="card ${className}">${content}</section>`;
+  const statusMessages = () =>
+    `${state.error ? `<div class="error" role="alert">${escapeHtml(state.error)}</div>` : ""}${state.notice ? `<div class="success" role="status">${escapeHtml(state.notice)}</div>` : ""}`;
+  const roleName = () => state.role === "admin" ? "Joseba · Administración" : state.role === "manager" ? "David · Participantes" : "Mi amigo invisible";
+
+  function setMessage(error = "", notice = "") {
+    state.error = error;
+    state.notice = notice;
+  }
+
+  function setContent(html) {
+    app.innerHTML = html;
+    document.body.classList.toggle("has-panel-nav", state.view === "panel");
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+
+  async function request(action, params = {}) {
+    if (!( /^https:\/\/[^\s]+\/_functions\/aboiz26\/?$/.test(apiUrl) || apiUrl === "/api/aboiz26" )) {
+      throw new Error("La URL del backend no es válida. Revisa config.js.");
+    }
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      referrerPolicy: "no-referrer",
+      body: JSON.stringify({ action, token: state.token, ...params })
+    });
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error("Wix no devolvió una respuesta válida.");
+    }
+    if (!response.ok) throw new Error(data.error || "Error de conexión");
+    return data;
+  }
+
+  async function task(work) {
+    if (state.busy) return;
+    state.busy = true;
+    setMessage();
+    render();
+    try {
+      await work();
+    } catch (error) {
+      setMessage(error.message || "Error inesperado");
+    } finally {
+      state.busy = false;
+      render();
+    }
+  }
+
+  function renderHome() {
+    return card(`
+      <div class="eyebrow">Edición ${escapeHtml(eventYear)}</div>
+      <h2>Elige tu acceso</h2>
+      <p class="lead">Cada persona entra únicamente en la parte que necesita.</p>
+      ${statusMessages()}
+      <div class="access-grid">
+        <button class="access-card admin" type="button" data-action="choose-admin">
+          <span class="access-icon" aria-hidden="true">✦</span>
+          <span><b>Joseba</b><small>Organización, sorteo, códigos y resultados</small></span><i>›</i>
+        </button>
+        <button class="access-card manager" type="button" data-action="choose-manager">
+          <span class="access-icon" aria-hidden="true">◎</span>
+          <span><b>David</b><small>Altas, cambios y seguimiento de participantes</small></span><i>›</i>
+        </button>
+        <button class="access-card guest" type="button" data-action="choose-guest">
+          <span class="access-icon" aria-hidden="true">◈</span>
+          <span><b>Tengo un código</b><small>Descubrir a quién regalo y guardar mis deseos</small></span><i>›</i>
+        </button>
+      </div>
+      <div class="privacy-note"><span aria-hidden="true">⌁</span><p><b>Acceso privado.</b> No compartas contraseñas, códigos ni capturas del resultado.</p></div>
+    `, "home-card");
+  }
+
+  function renderLogin() {
+    const isAdmin = state.loginMode === "admin";
+    return card(`
+      <button type="button" class="back-link" data-action="home">← Volver</button>
+      <div class="login-mark ${isAdmin ? "admin" : "manager"}">${isAdmin ? "✦" : "◎"}</div>
+      <div class="eyebrow">${isAdmin ? "Acceso de organización" : "Gestión de participantes"}</div>
+      <h2>${isAdmin ? "Hola, Joseba" : "Hola, David"}</h2>
+      <p class="lead">${isAdmin ? "Desde aquí controlas el sorteo y los códigos personales." : "Desde aquí mantienes la lista de participantes, sin ver emparejamientos."}</p>
+      ${statusMessages()}
+      <form id="login-form" class="stack-form">
+        <label class="f">Contraseña
+          <input class="in" name="password" type="password" minlength="16" autocomplete="current-password" required autofocus>
+        </label>
+        <button class="btn primary big" type="submit">Entrar de forma segura</button>
+      </form>
+    `, "compact login-card");
+  }
+
+  function renderCodeLogin() {
+    return card(`
+      <button type="button" class="back-link" data-action="home">← Volver</button>
+      <div class="login-mark guest">◈</div>
+      <div class="eyebrow">Acceso personal</div>
+      <h2>Abre tu invitación</h2>
+      <p class="lead">Introduce el código que te ha enviado Joseba. Es personal y se puede revocar.</p>
+      ${statusMessages()}
+      <form id="code-form" class="stack-form">
+        <label class="f">Código personal
+          <input class="in code-input" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" required placeholder="AB26-…">
+        </label>
+        <button class="btn primary big" type="submit">Entrar</button>
+      </form>
+      <p class="small center-copy">Si tu código no funciona, pide uno nuevo a Joseba.</p>
+    `, "compact login-card");
+  }
+
+  function sectionButton(section, label, icon) {
+    return `<button type="button" data-action="section:${section}" ${state.section === section ? 'aria-current="page"' : ""}><span aria-hidden="true">${icon}</span><small>${label}</small></button>`;
+  }
+
+  function panelNavigation() {
+    let items;
+    if (state.role === "admin") {
+      items = [
+        ["overview", "Inicio", "⌂"], ["event", "Evento", "◷"], ["people", "Gente", "♙"], ["draw", "Sorteo", "✦"],
+        ["delivery", "Entrega", "⌁"], ["wishes", "Deseos", "♡"]
+      ];
+    } else if (state.role === "manager") {
+      items = [["overview", "Inicio", "⌂"], ["people", "Personas", "♙"], ["wishes", "Deseos", "♡"]];
+    } else {
+      items = [["reveal", "Mi regalo", "◈"], ["wishes", "Mis deseos", "♡"], ["help", "Ayuda", "?"]];
+    }
+    return `<nav aria-label="Secciones de ${escapeHtml(roleName())}"><div class="bar">${items.map(item => sectionButton(...item)).join("")}</div></nav>`;
+  }
+
+  function panelHeader() {
+    return card(`
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">${state.role === "guest" ? "Invitación personal" : "Panel privado"}</div>
+          <h2>${escapeHtml(roleName())}</h2>
+        </div>
+        ${button("logout", "Salir", "btn quiet")}
+      </div>
+      ${statusMessages()}
+    `, "panel-heading");
+  }
+
+  function metric(value, label, tone = "") {
+    return `<article class="metric ${tone}"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></article>`;
+  }
+
+  function staffOverview() {
+    const data = state.info;
+    const active = data.people.filter(person => person.active);
+    const codes = active.filter(person => person.hasCode).length;
+    const wishes = active.filter(person => person.hasWish).length;
+    const minimumReady = active.length >= 3;
+    return `
+      ${card(`
+        <div class="section-title"><div><div class="eyebrow">Resumen</div><h2>Todo de un vistazo</h2></div><span class="status-pill ${data.drawReady ? "live" : "pending"}">${data.drawReady ? "Sorteo realizado" : "Preparación"}</span></div>
+        <div class="metrics">
+          ${metric(active.length, "participantes activos", "green")}
+          ${metric(wishes, "listas con deseos", "gold")}
+          ${state.role === "admin" ? metric(codes, "códigos emitidos", "rose") : metric(data.people.length - active.length, "retirados", "muted")}
+        </div>
+      `)}
+      ${card(`
+        <h3>${data.drawReady ? "El sorteo está protegido" : "Siguiente paso"}</h3>
+        <div class="journey">
+          <div class="journey-step done"><b>1</b><span><strong>Preparar la lista</strong><small>${active.length} personas activas</small></span></div>
+          <div class="journey-step ${minimumReady ? "done" : ""}"><b>2</b><span><strong>Mínimo de tres</strong><small>${minimumReady ? "Ya se puede sortear" : "Faltan " + (3 - active.length)}</small></span></div>
+          <div class="journey-step ${data.drawReady ? "done" : ""}"><b>3</b><span><strong>Realizar el sorteo</strong><small>${data.drawReady ? "Resultados guardados en Wix" : "Solo Joseba puede hacerlo"}</small></span></div>
+          <div class="journey-step ${codes ? "done" : ""}"><b>4</b><span><strong>Entregar códigos</strong><small>${codes} de ${active.length} generados</small></span></div>
+        </div>
+        <div class="btns">
+          ${button("section:people", "Gestionar participantes", "btn primary")}
+          ${state.role === "admin" ? button("section:" + (data.drawReady ? "delivery" : "draw"), data.drawReady ? "Preparar entregas" : "Ir al sorteo") : button("section:wishes", "Ver seguimiento")}
+        </div>
+      `)}
+      ${state.role === "manager" ? card(`<h3>Qué puede hacer David</h3><ul class="plain-list"><li>Añadir, corregir o retirar personas antes del sorteo.</li><li>Comprobar quién ha preparado su lista de deseos.</li><li>No puede ver parejas, generar códigos ni anular el sorteo.</li></ul>`, "role-explainer") : ""}
+    `;
+  }
+
+  function personActions(person, drawReady) {
+    if (drawReady || !person.active) return "";
+    return `<div class="person-actions">${button("edit:" + person._id, "Editar", "btn mini")}${button("remove:" + person._id, "Retirar", "btn mini danger")}</div>`;
+  }
+
+  function adminEvent() {
+    const event = state.info.event || {};
+    return card(`<div class="eyebrow">Evento</div><h2>Datos de la celebración</h2><p class="lead">Estos datos aparecen en las invitaciones y en el acceso personal.</p>
+      <form id="event-form" class="stack-form">
+        <label class="f">Nombre del evento<input class="in" name="name" maxlength="100" required value="${escapeHtml(event.name || "Amigo invisible Aboiz")}"></label>
+        <div class="grid2"><label class="f">Fecha<input class="in" type="date" name="date" value="${escapeHtml(event.date || "")}"></label><label class="f">Lugar<input class="in" name="place" maxlength="160" value="${escapeHtml(event.place || "")}"></label></div>
+        <div class="grid2"><label class="f">Presupuesto mínimo (€)<input class="in" type="number" min="0" max="10000" name="min" value="${escapeHtml(event.min ?? 40)}"></label><label class="f">Presupuesto máximo (€)<input class="in" type="number" min="0" max="10000" name="max" value="${escapeHtml(event.max ?? 50)}"></label></div>
+        <label class="f">Mensaje común<textarea name="message" maxlength="650" placeholder="Indicaciones para todo el grupo…">${escapeHtml(event.message || "")}</textarea></label>
+        <label class="f">Enlace de la app<input class="in" type="url" name="appUrl" maxlength="300" value="${escapeHtml(event.appUrl || location.href)}"></label>
+        <button class="btn primary" type="submit">Guardar datos del evento</button>
+      </form>`);
+  }
+
+  function filteredPeople() {
+    const query = state.peopleSearch.trim().toLocaleLowerCase("es");
+    return state.info.people.filter(person => {
+      const matchesFilter = state.peopleFilter === "all" || (state.peopleFilter === "active" ? person.active : !person.active);
+      const matchesQuery = !query || person.name.toLocaleLowerCase("es").includes(query) || String(person.email || "").toLocaleLowerCase("es").includes(query);
+      return matchesFilter && matchesQuery;
+    });
+  }
+
+  function staffPeople() {
+    const data = state.info;
+    const people = filteredPeople();
+    return `
+      ${card(`
+        <div class="section-title"><div><div class="eyebrow">Participantes</div><h2>Lista de la edición</h2></div><span class="count-badge">${data.people.filter(person => person.active).length} activos</span></div>
+        ${data.drawReady ? `<div class="warn"><b>Lista bloqueada.</b> Para modificar personas, Joseba debe anular primero el sorteo.</div>` : `
+          <form id="add-form" class="add-person-form">
+            <label class="f">Nombre<input class="in" name="name" required minlength="2" maxlength="100" placeholder="Nombre y apellidos"></label>
+            <label class="f">Correo opcional<input type="email" class="in" name="email" maxlength="160" placeholder="nombre@correo.com"></label>
+            <button class="btn primary" type="submit">Añadir participante</button>
+          </form>
+        `}
+      `)}
+      ${card(`
+        <div class="people-toolbar">
+          <div class="segmented" aria-label="Filtrar participantes">
+            ${["active", "all", "inactive"].map(filter => button("filter:" + filter, filter === "active" ? "Activos" : filter === "all" ? "Todos" : "Retirados", "segment " + (state.peopleFilter === filter ? "selected" : ""))).join("")}
+          </div>
+          <label class="search-field"><span class="sr-only">Buscar</span><input id="people-search" class="in" type="search" value="${escapeHtml(state.peopleSearch)}" placeholder="Buscar persona…"></label>
+        </div>
+        <div class="people-list">
+          ${people.length ? people.map((person, index) => `
+            <article class="person-row ${person.active ? "" : "inactive"}">
+              <span class="person-avatar" style="--avatar-hue: ${(index * 47 + 24) % 360}">${escapeHtml(initials(person.name))}</span>
+              <div class="person-main"><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.email || "Sin correo")}</small></div>
+              <div class="person-flags">
+                <span class="mini-pill ${person.hasWish ? "yes" : ""}">${person.hasWish ? "♡ Deseos" : "Sin deseos"}</span>
+                ${state.role === "admin" && data.drawReady && person.active ? `<span class="mini-pill ${person.hasCode ? "yes" : ""}">${person.hasCode ? "⌁ Código" : "Sin código"}</span>` : ""}
+                <span class="mini-pill ${person.active ? "active" : "off"}">${person.active ? "Activo" : "Retirado"}</span>
+              </div>
+              ${personActions(person, data.drawReady)}
+            </article>
+          `).join("") : `<div class="empty-state"><b>No hay resultados</b><span>Prueba con otro filtro o búsqueda.</span></div>`}
+        </div>
+      `)}
+    `;
+  }
+
+  function drawRing(people) {
+    const active = people.filter(person => person.active);
+    const points = active.slice(0, 16).map((person, index, list) => {
+      const angle = (Math.PI * 2 * index / list.length) - Math.PI / 2;
+      const left = 50 + Math.cos(angle) * 40;
+      const top = 50 + Math.sin(angle) * 40;
+      return `<span class="av" style="left:${left}%;top:${top}%" title="${escapeHtml(person.name)}">${escapeHtml(initials(person.name))}</span>`;
+    }).join("");
+    return `<div class="ringwrap">${points}<div class="center"><span class="draw-star">✦</span><b>${active.length} personas</b><small>sin autoasignaciones</small></div></div>`;
+  }
+
+  function adminDraw() {
+    const data = state.info;
+    const active = data.people.filter(person => person.active);
+    if (!data.drawReady) {
+      return `
+        ${card(`<div class="eyebrow">Sorteo</div><h2>Preparar el momento</h2><p class="lead">El sorteo crea una asignación secreta para cada participante y bloquea la lista.</p>${drawRing(active)}
+          <form id="draw-options-form" class="stack-form draw-options"><label class="toggle"><input type="checkbox" name="noMutual" ${data.options?.noMutual !== false ? "checked" : ""}> Evitar parejas recíprocas (A regala a B y B a A)</label>
+          <div class="grid2"><label class="f">Pareja fija: regala<select class="in" name="fixedGiverId"><option value="">Ninguna</option>${active.map(x=>`<option value="${escapeHtml(x._id)}" ${data.options?.fixedGiverId===x._id?"selected":""}>${escapeHtml(x.name)}</option>`).join("")}</select></label><label class="f">Pareja fija: recibe<select class="in" name="fixedReceiverId"><option value="">Ninguna</option>${active.map(x=>`<option value="${escapeHtml(x._id)}" ${data.options?.fixedReceiverId===x._id?"selected":""}>${escapeHtml(x.name)}</option>`).join("")}</select></label></div><button class="btn" type="submit">Guardar reglas</button></form>
+          <div class="check-list"><p class="${active.length >= 3 ? "checked" : ""}">Hay al menos tres participantes activos</p><p class="checked">Nadie puede regalarse a sí mismo</p><p class="checked">Se respetan las exclusiones personales</p><p class="checked">Los resultados solo serán visibles para Joseba</p></div><button class="btn primary big" type="button" data-action="draw" ${active.length < 3 ? "disabled" : ""}>Realizar sorteo definitivo</button>`, "draw-card")}
+        ${card(`<h3>Antes de continuar</h3><p class="lead">Revisa nombres y correos. Después del sorteo solo podrás hacer cambios anulándolo, lo que invalidará todos los códigos enviados.</p>`)}
+      `;
+    }
+    return `
+      ${card(`<div class="section-title"><div><div class="eyebrow">Sorteo</div><h2>Resultado protegido</h2></div><span class="status-pill live">Realizado</span></div><p class="lead">Solo este acceso administrativo puede consultar las parejas.</p><div class="pair-list">${(data.pairs || []).map(pair => `<article><span>${escapeHtml(pair.from)}</span><i aria-hidden="true">→</i><strong>${escapeHtml(pair.to)}</strong></article>`).join("")}</div>`)}
+      ${card(`<h3>Zona de riesgo</h3><p class="lead">Anular el sorteo borra la asignación activa e invalida todos los códigos personales. Las listas de deseos se conservan.</p>${button("resetDraw", "Anular sorteo y códigos", "btn danger")}`, "danger-zone")}
+    `;
+  }
+
+  function deliveryMessage(issued) {
+    const event=state.info.event||{},date=event.date?new Date(event.date+"T12:00:00").toLocaleDateString("es-ES",{day:"numeric",month:"long",year:"numeric"}):"fecha por confirmar";
+    return `Hola ${issued.name}. Ya está listo el ${event.name||"Amigo invisible Aboiz"}.\n\nEntra en ${event.appUrl||location.href} con tu código personal:\n${issued.code}\n\nPresupuesto: ${event.min??40}–${event.max??50} € · ${date} · ${event.place||"lugar por confirmar"}${event.message?"\n\n"+event.message:""}\n\nNo compartas este código.`;
+  }
+
+  function adminCodes() {
+    const data = state.info;
+    const active = data.people.filter(person => person.active);
+    if (!data.drawReady) return card(`<div class="eyebrow">Códigos</div><h2>Primero realiza el sorteo</h2><p class="lead">Los códigos se vinculan al resultado activo. Ve a la sección Sorteo cuando la lista esté preparada.</p>${button("section:draw", "Ir al sorteo", "btn primary")}`);
+    const sent=active.filter(person=>person.sent).length,message=state.lastIssued?deliveryMessage(state.lastIssued):"";
+    return `
+      ${card(`<div class="section-title"><div><div class="eyebrow">Entrega privada</div><h2>Invitaciones personales</h2></div><span class="count-badge">${sent}/${active.length} enviados</span></div><div class="progress-track"><span style="width:${active.length?sent*100/active.length:0}%"></span></div><p class="lead">Genera el código, envía el mensaje y marca la entrega. Al regenerar, el anterior deja de funcionar.</p>${state.lastIssued ? `<div class="issued-code"><div><small>Invitación nueva para</small><strong>${escapeHtml(state.lastIssued.name)}</strong></div><code id="generated-code">${escapeHtml(state.lastIssued.code)}</code><textarea id="delivery-message" readonly>${escapeHtml(message)}</textarea><div class="btns">${button("copyMessage", "Copiar mensaje", "btn gold")}${button("whatsappMessage", "WhatsApp", "btn primary")}${state.lastIssued.email?`<a class="btn" href="mailto:${encodeURIComponent(state.lastIssued.email)}?subject=${encodeURIComponent(state.info.event?.name||"Amigo invisible Aboiz")}&body=${encodeURIComponent(message)}">Correo</a>`:""}</div><p>Se muestra una sola vez. Envía o copia el mensaje antes de continuar.</p></div>` : ""}`)}
+      ${card(`<div class="code-list">${active.map(person => `<article><span class="person-avatar">${escapeHtml(initials(person.name))}</span><div><strong>${escapeHtml(person.name)}</strong><small>${person.sent?"Invitación entregada":person.hasCode?"Código activo, pendiente de envío":"Pendiente de generar"}</small></div><span class="mini-pill ${person.sent ? "yes" : ""}">${person.sent?"Enviado":person.hasCode?"Emitido":"Pendiente"}</span>${button("issue:" + person._id, person.hasCode ? "Regenerar" : "Generar", "btn mini " + (person.hasCode ? "" : "primary"))}${person.hasCode?button("delivered:"+person._id,person.sent?"Desmarcar":"Marcar enviado","btn mini"):""}</article>`).join("")}</div>`)}
+    `;
+  }
+
+  function staffWishes() {
+    const data = state.info;
+    const active = data.people.filter(person => person.active);
+    const completed = active.filter(person => person.hasWish);
+    const percent = active.length ? Math.round(completed.length * 100 / active.length) : 0;
+    return `
+      ${card(`<div class="section-title"><div><div class="eyebrow">Preferencias</div><h2>Seguimiento de deseos</h2></div><span class="count-badge">${percent}%</span></div><p class="lead">Puedes comprobar quién ha guardado preferencias, pero su contenido solo se muestra a la persona que le regala.</p><div class="progress-track" aria-label="${percent}% completado"><span style="width:${percent}%"></span></div><p><b>${completed.length}</b> de <b>${active.length}</b> participantes han añadido algo. La lista es opcional.</p>`)}
+      ${card(`<div class="wish-status-list">${active.map(person => `<article><span class="person-avatar">${escapeHtml(initials(person.name))}</span><strong>${escapeHtml(person.name)}</strong><span class="mini-pill ${person.hasWish ? "yes" : ""}">${person.hasWish ? "Lista preparada" : "Sin preferencias"}</span></article>`).join("")}</div>`)}
+    `;
+  }
+
+  function wishSummary(wish) {
+    if (!wish?.selected?.length && !wish?.other) return `<div class="empty-wishes"><b>Sin preferencias todavía</b><p>Un regalo pensado con cariño siempre cuenta.</p></div>`;
+    return `<div class="wish-summary">${(wish.selected || []).map(key => {
+      const category = categories.find(item => item[0] === key);
+      return category ? `<article><span>♡</span><div><b>${escapeHtml(category[1])}</b><small>${escapeHtml(category[2])}</small></div></article>` : "";
+    }).join("")}${wish.other ? `<article class="wish-note"><span>✎</span><div><b>Nota personal</b><p>${escapeHtml(wish.other)}</p></div></article>` : ""}</div>`;
+  }
+
+  function guestReveal() {
+    const data = state.info;
+    if (!data.drawReady) return card(`<div class="eyebrow">Mi regalo</div><h2>El sorteo todavía no está listo</h2><p class="lead">Vuelve cuando Joseba haya terminado de preparar la edición.</p>`);
+    if (!state.opened) {
+      return card(`
+        <div class="eyebrow">Solo para tus ojos</div>
+        <h2>Hay un nombre dentro</h2>
+        <p class="lead">Asegúrate de que nadie mire la pantalla y toca la caja.</p>
+        <div class="unveil-stage">
+          <div class="glow-halo"></div><div class="magic-sparks" aria-hidden="true">✧ <i>✦</i> ✧ <i>✶</i> ✧</div>
+          <button type="button" class="giftbox" data-action="openGift" aria-label="Abrir la caja de regalo"><span class="gift-shadow"></span><span class="body"></span><span class="lid"></span><span class="bow"></span></button>
+          <div class="stage-label">TOCA LA CAJA</div>
+        </div>
+      `, "reveal");
+    }
+    return card(`
+      <div class="eyebrow">Te toca regalar a</div>
+      <div class="giftee pop">${escapeHtml(data.gift?.name || "Pendiente")}</div>
+      <div class="facts"><span>${escapeHtml(data.event?.min ?? 40)}–${escapeHtml(data.event?.max ?? 50)} €</span>${data.event?.date?`<span>${escapeHtml(new Date(data.event.date+"T12:00:00").toLocaleDateString("es-ES"))}</span>`:""}${data.event?.place?`<span>${escapeHtml(data.event.place)}</span>`:""}</div>
+      ${data.gift?.note?`<div class="gift-note"><b>Pista personal</b><p>${escapeHtml(data.gift.note)}</p></div>`:""}<div class="gift-wishes"><h3>Sus deseos</h3>${wishSummary(data.gift?.wishes)}</div>${data.event?.message?`<p class="event-message">${escapeHtml(data.event.message)}</p>`:""}
+      <div class="btns centered">${button("refreshGift", "Actualizar deseos")}${button("hideGift", "Ocultar el nombre", "btn quiet")}</div>
+      <div class="privacy-note"><span aria-hidden="true">⌁</span><p>No compartas este nombre. Puedes volver a consultarlo mientras tu código siga activo.</p></div>
+    `, "reveal");
+  }
+
+  function guestWishes() {
+    const wish = state.info.myWishes || { selected: [], other: "" };
+    return card(`
+      <div class="eyebrow">Mi lista</div><h2>Ayuda a acertar</h2>
+      <p class="lead">Es completamente opcional. Marca lo que te guste y añade una nota si quieres.</p>
+      <form id="wish-form" class="wish-wrap">
+        <div class="wish-grid">${categories.map(([key, title, detail]) => `<label class="wish-tile"><input type="checkbox" name="cat" value="${key}" ${wish.selected?.includes(key) ? "checked" : ""}><span><b>${escapeHtml(title)}</b><small>${escapeHtml(detail)}</small></span></label>`).join("")}</div>
+        <label class="f">Preferencias o cosas que evitar
+          <textarea name="other" maxlength="650" placeholder="Colores, tallas, alergias, gustos o algo que prefieres evitar…">${escapeHtml(wish.other || "")}</textarea>
+        </label>
+        <div class="wish-actions"><button class="btn gold" type="submit">Guardar mi lista</button>${button("clearWishes", "Dejarla en blanco", "btn quiet")}</div>
+      </form>
+      <p class="small">Tu lista puede cambiarse más adelante con el mismo código.</p>
+    `);
+  }
+
+  function guestHelp() {
+    return `
+      ${card(`<div class="eyebrow">Ayuda</div><h2>Cómo funciona</h2><div class="help-steps"><article><b>1</b><p>Guarda tus deseos si quieres. Son orientativos y opcionales.</p></article><article><b>2</b><p>Abre la caja para descubrir únicamente a quién te toca regalar.</p></article><article><b>3</b><p>Elige el regalo en secreto y disfruta del encuentro en Aboiz.</p></article></div>`)}
+      ${card(`<h3>Privacidad y códigos</h3><ul class="plain-list"><li>Tu código es personal: no lo reenvíes.</li><li>Joseba puede regenerarlo; el anterior quedará invalidado.</li><li>David no puede ver los emparejamientos.</li><li>Cierra la sesión si utilizas un dispositivo compartido.</li></ul>`)}
+    `;
+  }
+
+  function renderPanel() {
+    if (!state.info) return card(`<h2>Conectando…</h2>${statusMessages()}`);
+    let content;
+    if (state.role === "guest") {
+      if (!["reveal", "wishes", "help"].includes(state.section)) state.section = "reveal";
+      content = state.section === "reveal" ? guestReveal() : state.section === "wishes" ? guestWishes() : guestHelp();
+    } else {
+      const allowed = state.role === "admin" ? ["overview", "event", "people", "draw", "delivery", "wishes"] : ["overview", "people", "wishes"];
+      if (!allowed.includes(state.section)) state.section = "overview";
+      content = state.section === "overview" ? staffOverview() : state.section === "event" ? adminEvent() :
+        state.section === "people" ? staffPeople() :
+        state.section === "draw" ? adminDraw() :
+        state.section === "delivery" ? adminCodes() : staffWishes();
+    }
+    return `<div class="panel-shell ${state.busy ? "overlay-wait" : ""}">${panelHeader()}<div class="enter">${content}</div></div>${panelNavigation()}${renderModal()}`;
+  }
+
+  function renderModal() {
+    if (!state.modal) return "";
+    if (state.modal.type === "edit") {
+      const person = state.modal.person;
+      const choices=state.info.people.filter(x=>x.active&&x._id!==person._id).map(x=>`<label class="chip"><input type="checkbox" name="exclusion" value="${escapeHtml(x._id)}" ${person.exclusions?.includes(x._id)?"checked":""}> ${escapeHtml(x.name)}</label>`).join("");
+      return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><form id="edit-form" class="card modal-card"><div class="section-title"><h2 id="modal-title">Editar participante</h2><button type="button" class="close-button" data-action="closeModal" aria-label="Cerrar">×</button></div><input type="hidden" name="id" value="${escapeHtml(person._id)}"><label class="f">Nombre<input class="in" name="name" required minlength="2" maxlength="100" value="${escapeHtml(person.name)}"></label><label class="f">Correo opcional<input class="in" type="email" name="email" maxlength="160" value="${escapeHtml(person.email || "")}"></label><label class="f">Pistas para quien le regale<textarea name="note" maxlength="400">${escapeHtml(person.note||"")}</textarea></label><fieldset class="exclusions"><legend>Evitar emparejar con</legend><div class="chips">${choices||"No hay otras personas activas"}</div></fieldset><div class="btns"><button class="btn primary" type="submit">Guardar cambios</button>${button("closeModal", "Cancelar", "btn quiet")}</div></form></div>`;
+    }
+    return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><section class="card modal-card"><div class="modal-symbol">${state.modal.danger ? "!" : "✦"}</div><h2 id="modal-title">${escapeHtml(state.modal.title)}</h2><p class="lead">${escapeHtml(state.modal.text)}</p><div class="btns"><button class="btn ${state.modal.danger ? "danger" : "primary"}" type="button" data-action="modalConfirm">${escapeHtml(state.modal.confirmLabel || "Confirmar")}</button>${button("closeModal", "Cancelar", "btn quiet")}</div></section></div>`;
+  }
+
+  function render() {
+    let html;
+    if (state.view === "home") html = renderHome();
+    else if (state.view === "login") html = renderLogin();
+    else if (state.view === "code") html = renderCodeLogin();
+    else html = renderPanel();
+    setContent(html);
+  }
+
+  function setLogin(role, token) {
+    state.role = role;
+    state.token = token;
+    state.section = role === "guest" ? "reveal" : "overview";
+    state.opened = false;
+    state.view = "panel";
+    sessionStorage.setItem("aboiz_auth", token);
+    sessionStorage.setItem("aboiz_role", role);
+  }
+
+  function logout() {
+    Object.assign(state, { token: "", role: "", info: null, lastIssued: null, view: "home", section: "overview", opened: false, modal: null });
+    sessionStorage.removeItem("aboiz_auth");
+    sessionStorage.removeItem("aboiz_role");
+  }
+
+  async function refresh() {
+    state.info = await request("me");
+  }
+
+  function confirmAction(title, text, action, confirmLabel = "Confirmar", danger = false) {
+    state.modal = { type: "confirm", title, text, action, confirmLabel, danger };
+    render();
+  }
+
+  async function performConfirmed(action) {
+    state.modal = null;
+    if (action === "draw") {
+      await task(async () => { await request("draw"); await refresh(); state.section = "draw"; setMessage("", "Sorteo realizado y participantes bloqueados."); });
+    } else if (action === "resetDraw") {
+      await task(async () => { await request("invalidateDraw"); state.lastIssued = null; await refresh(); state.section = "overview"; setMessage("", "Sorteo anulado y códigos invalidados."); });
+    } else if (action.startsWith("remove:")) {
+      await task(async () => { await request("removePerson", { id: action.slice(7) }); await refresh(); setMessage("", "Participante retirado."); });
+    } else if (action.startsWith("issue:")) {
+      await task(async () => { state.lastIssued = await request("issueCode", { id: action.slice(6) }); state.lastIssued.id=action.slice(6); await refresh(); state.section = "delivery"; setMessage("", "Invitación generada. Envíala antes de continuar."); });
+    } else if (action === "clearWishes") {
+      await task(async () => { await request("saveWish", { selected: [], other: "" }); await refresh(); state.section = "wishes"; setMessage("", "Tu lista se ha dejado en blanco."); });
+    }
+  }
+
+  app.addEventListener("submit", event => {
+    event.preventDefault();
+    const form = event.target;
+    const values = new FormData(form);
+    if (form.id === "login-form") {
+      task(async () => {
+        const response = await request("login", { mode: state.loginMode, password: String(values.get("password")) });
+        setLogin(response.role, response.token);
+        await refresh();
+      });
+    } else if (form.id === "code-form") {
+      task(async () => {
+        const response = await request("codeLogin", { code: String(values.get("code")).trim() });
+        setLogin(response.role, response.token);
+        await refresh();
+      });
+    } else if (form.id === "add-form") {
+      task(async () => {
+        await request("addPerson", { name: values.get("name"), email: values.get("email") });
+        await refresh();
+        setMessage("", "Participante añadido.");
+      });
+    } else if (form.id === "edit-form") {
+      task(async () => {
+        state.modal = null;
+        await request("updatePerson", { id: values.get("id"), name: values.get("name"), email: values.get("email"), note: values.get("note"), exclusions: values.getAll("exclusion") });
+        await refresh();
+        setMessage("", "Participante actualizado.");
+      });
+    } else if (form.id === "event-form") {
+      task(async () => { await request("saveEvent", {event:{name:values.get("name"),date:values.get("date"),place:values.get("place"),min:Number(values.get("min")),max:Number(values.get("max")),message:values.get("message"),appUrl:values.get("appUrl")}});await refresh();setMessage("","Datos del evento guardados."); });
+    } else if (form.id === "draw-options-form") {
+      task(async () => { await request("saveDrawOptions",{noMutual:values.has("noMutual"),fixedGiverId:values.get("fixedGiverId"),fixedReceiverId:values.get("fixedReceiverId")});await refresh();setMessage("","Reglas del sorteo guardadas."); });
+    } else if (form.id === "wish-form") {
+      task(async () => {
+        await request("saveWish", { selected: values.getAll("cat"), other: String(values.get("other")) });
+        await refresh();
+        state.section = "wishes";
+        setMessage("", "Tus preferencias se han guardado.");
+      });
+    }
+  });
+
+  app.addEventListener("input", event => {
+    if (event.target.id === "people-search") {
+      state.peopleSearch = event.target.value;
+      const selectionStart = event.target.selectionStart;
+      render();
+      const replacement = document.getElementById("people-search");
+      if (replacement) {
+        replacement.focus();
+        replacement.setSelectionRange(selectionStart, selectionStart);
+      }
+    }
+  });
+
+  app.addEventListener("click", event => {
+    const control = event.target.closest("[data-action]");
+    if (!control) return;
+    const action = control.dataset.action;
+    if (action === "home") { state.view = "home"; setMessage(); render(); return; }
+    if (action === "choose-admin" || action === "choose-manager") {
+      state.view = "login"; state.loginMode = action === "choose-admin" ? "admin" : "manager"; setMessage(); render(); return;
+    }
+    if (action === "choose-guest") { state.view = "code"; setMessage(); render(); return; }
+    if (action === "logout") { logout(); render(); return; }
+    if (action.startsWith("section:")) { state.section = action.slice(8); setMessage(); render(); return; }
+    if (action.startsWith("filter:")) { state.peopleFilter = action.slice(7); render(); return; }
+    if (action === "openGift") { state.opened = true; document.body.classList.add("revealing"); render(); setTimeout(() => document.body.classList.remove("revealing"), 1100); return; }
+    if (action === "hideGift") { state.opened = false; render(); return; }
+    if (action === "refreshGift") { task(async () => { await refresh(); setMessage("", "Deseos actualizados."); }); return; }
+    if (action === "copyMessage") {
+      const message = state.lastIssued ? deliveryMessage(state.lastIssued) : "";
+      if (message) navigator.clipboard.writeText(message).then(() => { setMessage("", "Mensaje copiado."); render(); }).catch(() => { setMessage("No se pudo copiar. Selecciona el mensaje manualmente."); render(); });
+      return;
+    }
+    if(action==="whatsappMessage"&&state.lastIssued){window.open("https://wa.me/?text="+encodeURIComponent(deliveryMessage(state.lastIssued)),"_blank","noopener,noreferrer");return;}
+    if(action.startsWith("delivered:")){const id=action.slice(10),person=state.info.people.find(x=>x._id===id);task(async()=>{await request("markDelivered",{id,sent:!person.sent});await refresh();setMessage("",person.sent?"Entrega desmarcada.":"Entrega marcada como enviada.");});return;}
+    if (action === "draw") { confirmAction("Realizar el sorteo", "La lista quedará bloqueada y se creará una asignación secreta para cada participante.", "draw", "Realizar sorteo"); return; }
+    if (action === "resetDraw") { confirmAction("Anular el sorteo", "Se invalidarán todos los códigos personales enviados. Esta acción no se puede deshacer.", "resetDraw", "Anular definitivamente", true); return; }
+    if (action.startsWith("issue:")) {
+      const person = state.info.people.find(item => item._id === action.slice(6));
+      confirmAction(person?.hasCode ? "Regenerar código" : "Generar código", person?.hasCode ? "El código anterior de " + person.name + " dejará de funcionar." : "Se creará un código personal para " + (person?.name || "esta persona") + ".", action, person?.hasCode ? "Regenerar" : "Generar");
+      return;
+    }
+    if (action.startsWith("remove:")) {
+      const person = state.info.people.find(item => item._id === action.slice(7));
+      confirmAction("Retirar participante", (person?.name || "Esta persona") + " dejará de participar y cualquier código anterior quedará revocado.", action, "Retirar", true);
+      return;
+    }
+    if (action.startsWith("edit:")) {
+      const person = state.info.people.find(item => item._id === action.slice(5));
+      if (person) { state.modal = { type: "edit", person }; render(); }
+      return;
+    }
+    if (action === "clearWishes") { confirmAction("Dejar la lista en blanco", "Se eliminarán tus preferencias guardadas. Podrás volver a añadirlas más adelante.", "clearWishes", "Dejar en blanco", true); return; }
+    if (action === "closeModal") { state.modal = null; render(); return; }
+    if (action === "modalConfirm") { const pending = state.modal?.action; if (pending) performConfirmed(pending); }
+  });
+
+  (async () => {
+    if (state.token && state.role) {
+      state.view = "panel";
+      state.section = state.role === "guest" ? "reveal" : "overview";
+      try {
+        await refresh();
+      } catch {
+        logout();
+        setMessage("La sesión ha caducado. Accede de nuevo.");
+      }
+    }
+    render();
+  })();
 })();

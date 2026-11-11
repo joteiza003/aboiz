@@ -60,18 +60,33 @@ const text=(x,max)=>String(x||'').trim().slice(0,max);
 const isEmail=x=>!x||/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
 async function all(col){let arr=[],skip=0,got;do{got=await wixData.query(col).limit(1000).skip(skip).find(OPT);arr.push(...got.items);skip+=got.items.length;}while(got.hasNext()&&arr.length<5000);return arr;}
 async function currentDraw(){const rows=await all(DB.draw);return rows.find(x=>x.year===YEAR && x.active) || null;}
+const DEFAULT_EVENT=Object.freeze({name:'Amigo invisible Aboiz',date:'',place:'Restaurante Aboiz, Garai',min:40,max:50,message:'',appUrl:'https://joteiza003.github.io/aboiz/'});
+function safeConfig(raw={}){
+ const event=raw.event||{},options=raw.options||{},peopleMeta=raw.peopleMeta&&typeof raw.peopleMeta==='object'?raw.peopleMeta:{};
+ return {event:{name:text(event.name||DEFAULT_EVENT.name,100),date:text(event.date,20),place:text(event.place||DEFAULT_EVENT.place,160),min:Number.isFinite(Number(event.min))?Math.max(0,Math.min(10000,Number(event.min))):DEFAULT_EVENT.min,max:Number.isFinite(Number(event.max))?Math.max(0,Math.min(10000,Number(event.max))):DEFAULT_EVENT.max,message:text(event.message,650),appUrl:text(event.appUrl||DEFAULT_EVENT.appUrl,300)},options:{noMutual:options.noMutual!==false,fixedGiverId:text(options.fixedGiverId,100),fixedReceiverId:text(options.fixedReceiverId,100)},peopleMeta};
+}
+async function getConfig(){
+ const rows=(await all(DB.draw)).filter(x=>x.year===YEAR);
+ const row=rows.find(x=>x.title===`Configuración ${YEAR}`&&!x.active)||null;
+ return {row,value:safeConfig(row?.pairs)};
+}
+async function putConfig(value,row=null){return wixData.save(DB.draw,{...(row||{}),title:`Configuración ${YEAR}`,year:YEAR,active:false,pairs:safeConfig(value)},OPT);}
+function personMeta(config,id){const item=config.peopleMeta?.[id]||{};return {note:text(item.note,400),exclusions:Array.isArray(item.exclusions)?[...new Set(item.exclusions.map(x=>text(x,100)).filter(Boolean))].slice(0,100):[],sent:!!item.sent};}
 function giftIndex(givers,pairs){const map={};for(let i=0;i<givers.length;i++)map[givers[i]._id]=givers[pairs[i]]._id;return map;}
 function randomInt(n){return crypto.randomInt(n);}
 function shuffle(list){for(let i=list.length-1;i>0;i--){const j=randomInt(i+1);[list[i],list[j]]=[list[j],list[i]];}return list;}
-function makeDraw(people,fixed){
+function makeDraw(people,settings){
  const n=people.length;if(n<3)err('Se necesitan al menos tres participantes activos');
- const give=fixed.giver?people.findIndex(p=>norm(p.title)===norm(fixed.giver)):-1;
- const receive=fixed.receiver?people.findIndex(p=>norm(p.title)===norm(fixed.receiver)):-1;
- if(fixed.giver&&fixed.receiver&&(give<0||receive<0))err('Falta una persona de la pareja fija configurada',409);
- for(let attempt=0;attempt<20000;attempt++){
+ const give=settings.fixedGiverId?people.findIndex(p=>p._id===settings.fixedGiverId):settings.fixedGiver?people.findIndex(p=>norm(p.title)===norm(settings.fixedGiver)):-1;
+ const receive=settings.fixedReceiverId?people.findIndex(p=>p._id===settings.fixedReceiverId):settings.fixedReceiver?people.findIndex(p=>norm(p.title)===norm(settings.fixedReceiver)):-1;
+ if((settings.fixedGiverId||settings.fixedGiver)&&(give<0||receive<0))err('Falta una persona de la pareja fija configurada',409);
+ const exclusions=settings.exclusions||{};
+ for(let attempt=0;attempt<50000;attempt++){
    let arr=shuffle(Array.from({length:n},(_,i)=>i));
    if(give>=0 && arr[give]!==receive)continue;
    if(arr.some((j,i)=>j===i))continue;
+   if(arr.some((j,i)=>(exclusions[people[i]._id]||[]).includes(people[j]._id)||(exclusions[people[j]._id]||[]).includes(people[i]._id)))continue;
+   if(settings.noMutual&&arr.some((j,i)=>arr[j]===i))continue;
    return giftIndex(people,arr);
  }
  err('No se ha podido crear un sorteo válido',409);
@@ -96,6 +111,7 @@ async function handler(action,data){
  }
  const p=await verify(data.token);
  if(action==='me'){
+   const cfg=await getConfig();
    if(p.role==='guest'){
      const self=await wixData.get(DB.people,p.id,OPT);
      const w=await wixData.query(DB.wish).eq('personId',p.id).eq('year',YEAR).limit(1).find(OPT);
@@ -105,14 +121,15 @@ async function handler(action,data){
      if(recipientId){
        const target=await wixData.get(DB.people,recipientId,OPT);
        const targetWish=await wixData.query(DB.wish).eq('personId',recipientId).eq('year',YEAR).limit(1).find(OPT);
-       gift={name:target.title,wishes:stripWish(targetWish.items[0])};
+       gift={name:target.title,note:personMeta(cfg.value,recipientId).note,wishes:stripWish(targetWish.items[0])};
      }
-     return {role:'guest',person:{name:self.title},myWishes:stripWish(w.items[0]),gift,drawReady:!!draw};
+     return {role:'guest',person:{name:self.title},myWishes:stripWish(w.items[0]),gift,drawReady:!!draw,event:cfg.value.event};
    }
-   const people=(await all(DB.people)).filter(x=>x.year===YEAR).map(cleanPerson).sort((a,b)=>a.name.localeCompare(b.name,'es'));
+   const wishes=(await all(DB.wish)).filter(x=>x.year===YEAR);
+   const wishIds=new Set(wishes.filter(x=>x.selected?.length||x.other).map(x=>x.personId));
+   const people=(await all(DB.people)).filter(x=>x.year===YEAR).map(x=>({...cleanPerson(x),hasWish:wishIds.has(x._id),...personMeta(cfg.value,x._id)})).sort((a,b)=>a.name.localeCompare(b.name,'es'));
    const draw=await currentDraw();
-   const count=(await all(DB.wish)).filter(x=>x.year===YEAR).filter(x=>x.selected?.length||x.other).length;
-   const r={role:p.role,people,drawReady:!!draw,wishesFilled:count};
+   const r={role:p.role,people,drawReady:!!draw,wishesFilled:wishIds.size,event:cfg.value.event,options:cfg.value.options};
    if(p.role==='admin'&&draw){
      const byId=Object.fromEntries(people.map(x=>[x._id,x.name]));
      r.pairs=Object.entries(draw.pairs||{}).map(([from,to])=>({from:byId[from]||'(inactivo)',to:byId[to]||'(inactivo)'}));
@@ -128,6 +145,21 @@ async function handler(action,data){
    await wixData.save(DB.wish,item,OPT);return {saved:true};
  }
  requireRole(p,['admin','manager']);
+ if(action==='saveEvent'){
+   requireRole(p,['admin']);
+   const cfg=await getConfig(),next=safeConfig({...cfg.value,event:{...cfg.value.event,...data.event}});
+   if(next.event.max<next.event.min)err('El presupuesto máximo no puede ser menor que el mínimo');
+   await putConfig(next,cfg.row);return {event:next.event};
+ }
+ if(action==='saveDrawOptions'){
+   requireRole(p,['admin']);if(await currentDraw())err('Anula el sorteo antes de cambiar sus reglas.',409);
+   const cfg=await getConfig(),ids=new Set((await all(DB.people)).filter(x=>x.year===YEAR&&x.active).map(x=>x._id));
+   const fixedGiverId=text(data.fixedGiverId,100),fixedReceiverId=text(data.fixedReceiverId,100);
+   if(Boolean(fixedGiverId)!==Boolean(fixedReceiverId))err('Selecciona las dos personas de la pareja fija o ninguna');
+   if(fixedGiverId&&(fixedGiverId===fixedReceiverId||!ids.has(fixedGiverId)||!ids.has(fixedReceiverId)))err('La pareja fija no es válida');
+   cfg.value.options={noMutual:data.noMutual!==false,fixedGiverId,fixedReceiverId};
+   await putConfig(cfg.value,cfg.row);return {options:cfg.value.options};
+ }
  if(action==='addPerson'){
    if(await currentDraw())err('El sorteo está cerrado. Para modificar participantes, anula primero el sorteo.',409);
    const name=text(data.name,100),email=text(data.email,160);
@@ -147,7 +179,10 @@ async function handler(action,data){
    const others=(await all(DB.people)).filter(y=>y.year===YEAR&&y._id!==x._id);
    if(others.some(y=>norm(y.title)===norm(name)))err('Nombre duplicado',409);
    x.title=name;x.email=email;
-   await wixData.update(DB.people,x,OPT);return {ok:true};
+   const cfg=await getConfig(),valid=new Set(others.filter(y=>y.active).map(y=>y._id));
+   const exclusions=Array.isArray(data.exclusions)?[...new Set(data.exclusions.map(v=>text(v,100)).filter(v=>valid.has(v)))]:[];
+   cfg.value.peopleMeta[x._id]={...personMeta(cfg.value,x._id),note:text(data.note,400),exclusions};
+   await wixData.update(DB.people,x,OPT);await putConfig(cfg.value,cfg.row);return {ok:true};
  }
  if(action==='removePerson'){
    if(await currentDraw())err('Anula el sorteo antes de retirar participantes.',409);
@@ -160,22 +195,23 @@ async function handler(action,data){
  if(action==='draw'){
    if(await currentDraw())err('Ya existe un sorteo. Anúlalo antes de generar otro.',409);
    const people=(await all(DB.people)).filter(x=>x.year===YEAR&&x.active);
-   let fixedGiver='',fixedReceiver='';
+   const cfg=await getConfig();let fixedGiver='',fixedReceiver='';
    try{fixedGiver=(await secret(SECRET_NAMES.fixedGiver))||'';}catch(e){}
    try{fixedReceiver=(await secret(SECRET_NAMES.fixedReceiver))||'';}catch(e){}
    if(Boolean(fixedGiver)!==Boolean(fixedReceiver))err('Configura ambos secretos de pareja fija o ninguno',503);
-   const pairs=makeDraw(people,{giver:fixedGiver,receiver:fixedReceiver});
+   const exclusions=Object.fromEntries(people.map(x=>[x._id,personMeta(cfg.value,x._id).exclusions]));
+   const pairs=makeDraw(people,{...cfg.value.options,exclusions,fixedGiver,fixedReceiver});
    // Solo un registro de sorteo; el campo pairs nunca sale al gestor ni a invitados.
    await wixData.insert(DB.draw,{title:`Sorteo ${YEAR}`,year:YEAR,active:true,pairs,createdAt:new Date()},OPT);
    // Invalidación de códigos anteriores, si los había.
-   for(const x of people){x.codeHash='';x.rev=rand(10);await wixData.update(DB.people,x,OPT);}
+   for(const x of people){x.codeHash='';x.rev=rand(10);cfg.value.peopleMeta[x._id]={...personMeta(cfg.value,x._id),sent:false};await wixData.update(DB.people,x,OPT);}await putConfig(cfg.value,cfg.row);
    return {ok:true};
  }
  if(action==='invalidateDraw'){
    const draw=await currentDraw();if(!draw)err('No hay sorteo activo',409);
    draw.active=false;await wixData.update(DB.draw,draw,OPT);
-   const people=(await all(DB.people)).filter(x=>x.year===YEAR);
-   for(const x of people){x.codeHash='';x.rev=rand(10);await wixData.update(DB.people,x,OPT);}
+   const people=(await all(DB.people)).filter(x=>x.year===YEAR),cfg=await getConfig();
+   for(const x of people){x.codeHash='';x.rev=rand(10);cfg.value.peopleMeta[x._id]={...personMeta(cfg.value,x._id),sent:false};await wixData.update(DB.people,x,OPT);}await putConfig(cfg.value,cfg.row);
    return {ok:true};
  }
  if(action==='issueCode'){
@@ -184,8 +220,14 @@ async function handler(action,data){
    if(!x||x.year!==YEAR||!x.active)err('Participante incorrecto',404);
    const code='AB26-'+rand(27);
    x.codeHash=hash((await secret(SECRET_NAMES.pepper))+':'+code);x.rev=rand(10);
-   await wixData.update(DB.people,x,OPT);
+   const cfg=await getConfig();cfg.value.peopleMeta[x._id]={...personMeta(cfg.value,x._id),sent:false};
+   await wixData.update(DB.people,x,OPT);await putConfig(cfg.value,cfg.row);
    return {name:x.title,email:x.email||'',code}; // ÚNICA VEZ: mostrar para copiar, NO volver a consultar
+ }
+ if(action==='markDelivered'){
+   if(!await currentDraw())err('Realiza primero el sorteo',409);
+   const id=text(data.id,100),x=await wixData.get(DB.people,id,OPT).catch(()=>null);if(!x||x.year!==YEAR||!x.active)err('Participante incorrecto',404);
+   const cfg=await getConfig();cfg.value.peopleMeta[id]={...personMeta(cfg.value,id),sent:!!data.sent};await putConfig(cfg.value,cfg.row);return {sent:!!data.sent};
  }
  err('Operación desconocida',404);
 }

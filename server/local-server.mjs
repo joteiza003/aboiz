@@ -20,15 +20,16 @@ const safeEqual = (a,b) => {
   return left.length===right.length && crypto.timingSafeEqual(left,right);
 };
 const fail = (message, status=400) => Object.assign(new Error(message), {status});
-const emptyDb = () => ({people:[],draws:[],wishes:[]});
+const DEFAULT_EVENT={name:'Amigo invisible Aboiz',date:'',place:'Restaurante Aboiz, Garai',min:40,max:50,message:'',appUrl:'https://joteiza003.github.io/aboiz/'};
+const emptyDb = () => ({people:[],draws:[],wishes:[],config:{event:{...DEFAULT_EVENT},options:{noMutual:true,fixedGiverId:'',fixedReceiverId:''},peopleMeta:{}}});
 
 export function createLocalApp(options={}) {
   const dataDir=path.resolve(options.dataDir || process.env.ABOIZ_DATA_DIR || path.join(ROOT,'.data'));
   const dataFile=path.join(dataDir,'aboiz.json');
   let signingKey=options.signingKey || process.env.ABOIZ_SIGNING_KEY || '';
   let pepper=options.pepper || process.env.ABOIZ_CODE_PEPPER || '';
-  const adminPassword=options.adminPassword || process.env.ABOIZ_ADMIN_PASSWORD || 'Joseba-Aboiz-2026!';
-  const managerPassword=options.managerPassword || process.env.ABOIZ_DAVID_PASSWORD || 'David-Aboiz-2026!!';
+  let adminPassword=options.adminPassword || process.env.ABOIZ_ADMIN_PASSWORD || '';
+  let managerPassword=options.managerPassword || process.env.ABOIZ_DAVID_PASSWORD || '';
   let db=null;
   let queue=Promise.resolve();
 
@@ -36,16 +37,19 @@ export function createLocalApp(options={}) {
     if(db)return db;
     await fs.mkdir(dataDir,{recursive:true});
     const secretsFile=path.join(dataDir,'secrets.json');
-    if(!signingKey||!pepper){
+    if(!signingKey||!pepper||!adminPassword||!managerPassword){
       let localSecrets;
       try{localSecrets=JSON.parse(await fs.readFile(secretsFile,'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;localSecrets={};}
       signingKey ||= localSecrets.signingKey || random(48);
       pepper ||= localSecrets.pepper || random(48);
-      if(!localSecrets.signingKey||!localSecrets.pepper)await fs.writeFile(secretsFile,JSON.stringify({signingKey,pepper},null,2),'utf8');
+      adminPassword ||= localSecrets.adminPassword || 'Joseba-'+random(18);
+      managerPassword ||= localSecrets.managerPassword || 'David-'+random(18);
+      if(!localSecrets.signingKey||!localSecrets.pepper||!localSecrets.adminPassword||!localSecrets.managerPassword)await fs.writeFile(secretsFile,JSON.stringify({signingKey,pepper,adminPassword,managerPassword},null,2),'utf8');
     }
     try{db=JSON.parse(await fs.readFile(dataFile,'utf8'));}
     catch(error){if(error.code!=='ENOENT')throw error;db=emptyDb();await save();}
     for(const key of ['people','draws','wishes'])if(!Array.isArray(db[key]))db[key]=[];
+    db.config ||= {};db.config.event={...DEFAULT_EVENT,...db.config.event};db.config.options={noMutual:true,fixedGiverId:'',fixedReceiverId:'',...db.config.options};db.config.peopleMeta ||= {};
     return db;
   }
   async function save(){
@@ -58,6 +62,7 @@ export function createLocalApp(options={}) {
   const cleanPerson=p=>({_id:p._id,name:p.name,email:p.email||'',active:!!p.active,hasCode:!!p.codeHash});
   const stripWish=w=>({selected:(w?.selected||[]).filter(x=>CATEGORIES.has(x)),other:w?.other||''});
   const findWish=id=>db.wishes.find(x=>x.personId===id&&x.year===YEAR);
+  const meta=id=>{const value=db.config.peopleMeta[id]||{};return {note:text(value.note,400),exclusions:Array.isArray(value.exclusions)?[...new Set(value.exclusions.map(x=>text(x,100)).filter(Boolean))]:[],sent:!!value.sent};};
   const mac=value=>crypto.createHmac('sha256',signingKey).update(value).digest('base64url');
   function sign(role,id,version=''){
     const body=Buffer.from(JSON.stringify({role,id,version,exp:Date.now()+4*60*60*1000})).toString('base64url');
@@ -76,12 +81,17 @@ export function createLocalApp(options={}) {
     return payload;
   }
   const requireRole=(session,roles)=>{if(!roles.includes(session.role))throw fail('No tienes permisos',403);};
-  function makeDraw(people){
+  function makeDraw(people,settings){
     if(people.length<3)throw fail('Se necesitan al menos tres participantes activos');
-    const indexes=people.map((_,i)=>i);
-    for(let attempt=0;attempt<20000;attempt++){
+    const indexes=people.map((_,i)=>i),giver=settings.fixedGiverId?people.findIndex(x=>x._id===settings.fixedGiverId):-1,receiver=settings.fixedReceiverId?people.findIndex(x=>x._id===settings.fixedReceiverId):-1;
+    if(settings.fixedGiverId&&(giver<0||receiver<0||giver===receiver))throw fail('La pareja fija no es válida',409);
+    for(let attempt=0;attempt<50000;attempt++){
       for(let i=indexes.length-1;i>0;i--){const j=crypto.randomInt(i+1);[indexes[i],indexes[j]]=[indexes[j],indexes[i]];}
-      if(indexes.every((recipient,giver)=>recipient!==giver))return Object.fromEntries(indexes.map((recipient,giver)=>[people[giver]._id,people[recipient]._id]));
+      if(giver>=0&&indexes[giver]!==receiver)continue;
+      if(indexes.some((recipient,from)=>recipient===from))continue;
+      if(settings.noMutual&&indexes.some((recipient,from)=>indexes[recipient]===from))continue;
+      if(indexes.some((recipient,from)=>(settings.exclusions[people[from]._id]||[]).includes(people[recipient]._id)||(settings.exclusions[people[recipient]._id]||[]).includes(people[from]._id)))continue;
+      return Object.fromEntries(indexes.map((recipient,from)=>[people[from]._id,people[recipient]._id]));
     }
     throw fail('No se ha podido crear un sorteo válido',409);
   }
@@ -110,11 +120,12 @@ export function createLocalApp(options={}) {
         const person=db.people.find(x=>x._id===session.id), draw=activeDraw();
         const recipient=draw?.pairs?.[person._id];
         const target=db.people.find(x=>x._id===recipient);
-        return {role:'guest',person:{name:person.name},myWishes:stripWish(findWish(person._id)),gift:target?{name:target.name,wishes:stripWish(findWish(target._id))}:null,drawReady:!!draw};
+        return {role:'guest',person:{name:person.name},myWishes:stripWish(findWish(person._id)),gift:target?{name:target.name,note:meta(target._id).note,wishes:stripWish(findWish(target._id))}:null,drawReady:!!draw,event:db.config.event};
       }
-      const people=db.people.filter(x=>x.year===YEAR).map(cleanPerson).sort((a,b)=>a.name.localeCompare(b.name,'es'));
+      const wishIds=new Set(db.wishes.filter(x=>x.year===YEAR&&(x.selected?.length||x.other)).map(x=>x.personId));
+      const people=db.people.filter(x=>x.year===YEAR).map(x=>({...cleanPerson(x),hasWish:wishIds.has(x._id),...meta(x._id)})).sort((a,b)=>a.name.localeCompare(b.name,'es'));
       const draw=activeDraw();
-      const result={role:session.role,people,drawReady:!!draw,wishesFilled:db.wishes.filter(x=>x.year===YEAR&&(x.selected?.length||x.other)).length};
+      const result={role:session.role,people,drawReady:!!draw,wishesFilled:wishIds.size,event:db.config.event,options:db.config.options};
       if(session.role==='admin'&&draw){const names=Object.fromEntries(people.map(x=>[x._id,x.name]));result.pairs=Object.entries(draw.pairs).map(([from,to])=>({from:names[from]||'(inactivo)',to:names[to]||'(inactivo)'}));}
       return result;
     }
@@ -126,6 +137,12 @@ export function createLocalApp(options={}) {
       await save();return {saved:true};
     }
     requireRole(session,['admin','manager']);
+    if(action==='saveEvent'){
+      requireRole(session,['admin']);const event=input.event||{},next={...db.config.event,name:text(event.name??db.config.event.name,100),date:text(event.date??db.config.event.date,20),place:text(event.place??db.config.event.place,160),min:Math.max(0,Number(event.min??db.config.event.min)||0),max:Math.max(0,Number(event.max??db.config.event.max)||0),message:text(event.message??db.config.event.message,650),appUrl:text(event.appUrl??db.config.event.appUrl,300)};if(next.max<next.min)throw fail('El presupuesto máximo no puede ser menor que el mínimo');db.config.event=next;await save();return {event:next};
+    }
+    if(action==='saveDrawOptions'){
+      requireRole(session,['admin']);if(activeDraw())throw fail('Anula el sorteo antes de cambiar sus reglas.',409);const ids=new Set(db.people.filter(x=>x.year===YEAR&&x.active).map(x=>x._id)),fixedGiverId=text(input.fixedGiverId,100),fixedReceiverId=text(input.fixedReceiverId,100);if(Boolean(fixedGiverId)!==Boolean(fixedReceiverId))throw fail('Selecciona las dos personas de la pareja fija o ninguna');if(fixedGiverId&&(fixedGiverId===fixedReceiverId||!ids.has(fixedGiverId)||!ids.has(fixedReceiverId)))throw fail('La pareja fija no es válida');db.config.options={noMutual:input.noMutual!==false,fixedGiverId,fixedReceiverId};await save();return {options:db.config.options};
+    }
     if(action==='addPerson'){
       if(activeDraw())throw fail('El sorteo está cerrado. Para modificar participantes, anula primero el sorteo.',409);
       const name=text(input.name,100),email=text(input.email,160),people=db.people.filter(x=>x.year===YEAR);
@@ -141,7 +158,7 @@ export function createLocalApp(options={}) {
       if(!person)throw fail('Participante no encontrado',404);
       if(name.length<2||!(!email||/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))throw fail('Nombre o correo incorrectos');
       if(db.people.some(x=>x.year===YEAR&&x._id!==person._id&&normalize(x.name)===normalize(name)))throw fail('Nombre duplicado',409);
-      person.name=name;person.email=email;await save();return {ok:true};
+      person.name=name;person.email=email;const valid=new Set(db.people.filter(x=>x.year===YEAR&&x.active&&x._id!==person._id).map(x=>x._id));db.config.peopleMeta[person._id]={...meta(person._id),note:text(input.note,400),exclusions:Array.isArray(input.exclusions)?[...new Set(input.exclusions.map(x=>text(x,100)).filter(x=>valid.has(x)))]:[]};await save();return {ok:true};
     }
     if(action==='removePerson'){
       if(activeDraw())throw fail('Anula el sorteo antes de retirar participantes.',409);
@@ -152,20 +169,23 @@ export function createLocalApp(options={}) {
     requireRole(session,['admin']);
     if(action==='draw'){
       if(activeDraw())throw fail('Ya existe un sorteo. Anúlalo antes de generar otro.',409);
-      const people=db.people.filter(x=>x.year===YEAR&&x.active),pairs=makeDraw(people);
+      const people=db.people.filter(x=>x.year===YEAR&&x.active),settings={...db.config.options,exclusions:Object.fromEntries(people.map(x=>[x._id,meta(x._id).exclusions]))},pairs=makeDraw(people,settings);
       db.draws.push({_id:crypto.randomUUID(),year:YEAR,active:true,pairs,createdAt:new Date().toISOString()});
-      for(const person of people){person.codeHash='';person.rev=random(10);}await save();return {ok:true};
+      for(const person of people){person.codeHash='';person.rev=random(10);db.config.peopleMeta[person._id]={...meta(person._id),sent:false};}await save();return {ok:true};
     }
     if(action==='invalidateDraw'){
       const draw=activeDraw();if(!draw)throw fail('No hay sorteo activo',409);draw.active=false;
-      for(const person of db.people.filter(x=>x.year===YEAR)){person.codeHash='';person.rev=random(10);}await save();return {ok:true};
+      for(const person of db.people.filter(x=>x.year===YEAR)){person.codeHash='';person.rev=random(10);db.config.peopleMeta[person._id]={...meta(person._id),sent:false};}await save();return {ok:true};
     }
     if(action==='issueCode'){
       if(!activeDraw())throw fail('Realiza primero el sorteo',409);
       const person=db.people.find(x=>x._id===text(input.id,100)&&x.year===YEAR&&x.active);
       if(!person)throw fail('Participante incorrecto',404);
-      const code='AB26-'+random(27);person.codeHash=hash(pepper+':'+code);person.rev=random(10);await save();
+      const code='AB26-'+random(27);person.codeHash=hash(pepper+':'+code);person.rev=random(10);db.config.peopleMeta[person._id]={...meta(person._id),sent:false};await save();
       return {name:person.name,email:person.email||'',code};
+    }
+    if(action==='markDelivered'){
+      if(!activeDraw())throw fail('Realiza primero el sorteo',409);const person=db.people.find(x=>x._id===text(input.id,100)&&x.year===YEAR&&x.active);if(!person)throw fail('Participante incorrecto',404);db.config.peopleMeta[person._id]={...meta(person._id),sent:!!input.sent};await save();return {sent:!!input.sent};
     }
     throw fail('Operación desconocida',404);
   }
