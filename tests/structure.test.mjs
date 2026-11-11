@@ -15,7 +15,8 @@ test('la interfaz separa evento, sorteo, entrega y permisos',()=>{
  const js=read('assets/app.js');
  for(const val of ['adminEvent','saveDrawOptions','markDelivered','deliveryMessage','exclusions'])assert.ok(js.includes(val));
  assert.doesNotMatch(js,/pareja fija|fixedGiver|fixedReceiver/i);
- assert.ok(js.includes('testDraw'));assert.match(js,/state\.modal = null;\s*task\(async \(\) => \{\s*await request\("updatePerson"/);
+ assert.ok(js.includes('testDraw'));assert.match(js,/data-action="saveEdit"/);assert.match(js,/function saveEditedPerson/);
+ assert.match(js,/function emailMessageUrl/);assert.match(js,/data-email-link/);
  assert.match(js,/state\.role === "admin"/);assert.match(js,/David no puede ver/);
 });
 test('el modo local está configurado y sus datos no entran en Git',()=>{

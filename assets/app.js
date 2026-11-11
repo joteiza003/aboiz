@@ -330,13 +330,19 @@
     return `Hola ${issued.name}. Ya está listo el ${event.name||"Amigo invisible Aboiz"}.\n\nEntra en ${event.appUrl||location.href} con tu código personal:\n${issued.code}\n\nPresupuesto: ${event.min??40}–${event.max??50} € · ${date} · ${event.place||"lugar por confirmar"}${event.message?"\n\n"+event.message:""}\n\nNo compartas este código.`;
   }
 
+  function emailMessageUrl(issued) {
+    const subject=state.info.event?.name||"Amigo invisible Aboiz";
+    return `mailto:${String(issued.email||"").trim()}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(deliveryMessage(issued))}`;
+  }
+
   function adminCodes() {
     const data = state.info;
     const active = data.people.filter(person => person.active);
     if (!data.drawReady) return card(`<div class="eyebrow">Códigos</div><h2>Primero realiza el sorteo</h2><p class="lead">Los códigos se vinculan al resultado activo. Ve a la sección Sorteo cuando la lista esté preparada.</p>${button("section:draw", "Ir al sorteo", "btn primary")}`);
     const sent=active.filter(person=>person.sent).length,message=state.lastIssued?deliveryMessage(state.lastIssued):"";
+    const emailAction=state.lastIssued?.email?`<a class="btn" data-email-link href="${escapeHtml(emailMessageUrl(state.lastIssued))}">Abrir correo</a>`:`<span class="mail">Sin correo guardado</span>`;
     return `
-      ${card(`<div class="section-title"><div><div class="eyebrow">Entrega privada</div><h2>Invitaciones personales</h2></div><span class="count-badge">${sent}/${active.length} enviados</span></div><div class="progress-track"><span style="width:${active.length?sent*100/active.length:0}%"></span></div><p class="lead">Genera el código, envía el mensaje y marca la entrega. Al regenerar, el anterior deja de funcionar.</p>${state.lastIssued ? `<div class="issued-code"><div><small>Invitación nueva para</small><strong>${escapeHtml(state.lastIssued.name)}</strong></div><code id="generated-code">${escapeHtml(state.lastIssued.code)}</code><textarea id="delivery-message" readonly>${escapeHtml(message)}</textarea><div class="btns">${button("copyMessage", "Copiar mensaje", "btn gold")}${button("whatsappMessage", "WhatsApp", "btn primary")}${state.lastIssued.email?`<a class="btn" href="mailto:${encodeURIComponent(state.lastIssued.email)}?subject=${encodeURIComponent(state.info.event?.name||"Amigo invisible Aboiz")}&body=${encodeURIComponent(message)}">Correo</a>`:""}</div><p>Se muestra una sola vez. Envía o copia el mensaje antes de continuar.</p></div>` : ""}`)}
+      ${card(`<div class="section-title"><div><div class="eyebrow">Entrega privada</div><h2>Invitaciones personales</h2></div><span class="count-badge">${sent}/${active.length} enviados</span></div><div class="progress-track"><span style="width:${active.length?sent*100/active.length:0}%"></span></div><p class="lead">Genera el código, envía el mensaje y marca la entrega. Al regenerarlo, el anterior deja de funcionar.</p>${state.lastIssued ? `<div class="issued-code"><div><small>Invitación nueva para</small><strong>${escapeHtml(state.lastIssued.name)}</strong></div><code id="generated-code">${escapeHtml(state.lastIssued.code)}</code><textarea id="delivery-message" readonly>${escapeHtml(message)}</textarea><div class="btns">${button("copyMessage", "Copiar mensaje", "btn gold")}${button("whatsappMessage", "WhatsApp", "btn primary")}${emailAction}</div><p>Correo y WhatsApp se abren con el texto completo preparado. El envío final siempre lo confirmas tú.</p></div>` : ""}`)}
       ${card(`<div class="code-list">${active.map(person => `<article><span class="person-avatar" style="--avatar-hue:${avatarHue(person.name)}">${escapeHtml(initials(person.name))}</span><div><strong>${escapeHtml(person.name)}</strong><small>${person.sent?"Invitación entregada":person.hasCode?"Código activo, pendiente de envío":"Pendiente de generar"}</small></div><span class="mini-pill ${person.sent ? "yes" : ""}">${person.sent?"Enviado":person.hasCode?"Emitido":"Pendiente"}</span>${button("issue:" + person._id, person.hasCode ? "Regenerar" : "Generar", "btn mini " + (person.hasCode ? "" : "primary"))}${person.hasCode?button("delivered:"+person._id,person.sent?"Desmarcar":"Marcar enviado","btn mini"):""}</article>`).join("")}</div>`)}
     `;
   }
@@ -430,7 +436,7 @@
     if (state.modal.type === "edit") {
       const person = state.modal.person;
       const choices=state.info.people.filter(x=>x.active&&x._id!==person._id).map(x=>`<label class="chip"><input type="checkbox" name="exclusion" value="${escapeHtml(x._id)}" ${person.exclusions?.includes(x._id)?"checked":""}> ${escapeHtml(x.name)}</label>`).join("");
-      return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><form id="edit-form" class="card modal-card"><div class="section-title"><h2 id="modal-title">Editar participante</h2><button type="button" class="close-button" data-action="closeModal" aria-label="Cerrar">×</button></div><input type="hidden" name="id" value="${escapeHtml(person._id)}"><label class="f">Nombre<input class="in" name="name" required minlength="2" maxlength="100" value="${escapeHtml(person.name)}"></label><label class="f">Correo opcional<input class="in" type="email" name="email" maxlength="160" value="${escapeHtml(person.email || "")}"></label><label class="f">Pistas para quien le regale<textarea name="note" maxlength="400">${escapeHtml(person.note||"")}</textarea></label><fieldset class="exclusions"><legend>Evitar emparejar con</legend><div class="chips">${choices||"No hay otras personas activas"}</div></fieldset><div class="btns"><button class="btn primary" type="submit">Guardar cambios</button>${button("closeModal", "Cancelar", "btn quiet")}</div></form></div>`;
+      return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><form id="edit-form" class="card modal-card"><div class="section-title"><h2 id="modal-title">Editar participante</h2><button type="button" class="close-button" data-action="closeModal" aria-label="Cerrar">×</button></div><input type="hidden" name="id" value="${escapeHtml(person._id)}"><label class="f">Nombre<input class="in" name="name" required minlength="2" maxlength="100" value="${escapeHtml(person.name)}"></label><label class="f">Correo opcional<input class="in" type="email" name="email" maxlength="160" value="${escapeHtml(person.email || "")}"></label><label class="f">Pistas para quien le regale<textarea name="note" maxlength="400">${escapeHtml(person.note||"")}</textarea></label><fieldset class="exclusions"><legend>Evitar emparejar con</legend><div class="chips">${choices||"No hay otras personas activas"}</div></fieldset><div class="btns"><button class="btn primary" type="button" data-action="saveEdit">Guardar cambios</button>${button("closeModal", "Cancelar", "btn quiet")}</div></form></div>`;
     }
     return `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><section class="card modal-card"><div class="modal-symbol">${state.modal.danger ? "!" : "✦"}</div><h2 id="modal-title">${escapeHtml(state.modal.title)}</h2><p class="lead">${escapeHtml(state.modal.text)}</p><div class="btns"><button class="btn ${state.modal.danger ? "danger" : "primary"}" type="button" data-action="modalConfirm">${escapeHtml(state.modal.confirmLabel || "Confirmar")}</button>${button("closeModal", "Cancelar", "btn quiet")}</div></section></div>`;
   }
@@ -467,6 +473,14 @@
   function confirmAction(title, text, action, confirmLabel = "Confirmar", danger = false) {
     state.modal = { type: "confirm", title, text, action, confirmLabel, danger };
     render();
+  }
+
+  function saveEditedPerson(form) {
+    if (!form || !form.reportValidity()) return;
+    const values=new FormData(form);
+    const payload={id:values.get("id"),name:values.get("name"),email:values.get("email"),note:values.get("note"),exclusions:values.getAll("exclusion")};
+    state.modal=null;
+    task(async()=>{await request("updatePerson",payload);await refresh();setMessage("","Participante actualizado correctamente.");});
   }
 
   async function performConfirmed(action) {
@@ -507,12 +521,7 @@
         setMessage("", "Participante añadido.");
       });
     } else if (form.id === "edit-form") {
-      state.modal = null;
-      task(async () => {
-        await request("updatePerson", { id: values.get("id"), name: values.get("name"), email: values.get("email"), note: values.get("note"), exclusions: values.getAll("exclusion") });
-        await refresh();
-        setMessage("", "Participante actualizado.");
-      });
+      saveEditedPerson(form);
     } else if (form.id === "event-form") {
       task(async () => { await request("saveEvent", {event:{name:values.get("name"),date:values.get("date"),place:values.get("place"),min:Number(values.get("min")),max:Number(values.get("max")),message:values.get("message"),appUrl:values.get("appUrl")}});await refresh();setMessage("","Datos del evento guardados."); });
     } else if (form.id === "draw-options-form") {
@@ -550,6 +559,7 @@
     }
     if (action === "choose-guest") { state.view = "code"; setMessage(); render(); return; }
     if (action === "logout") { logout(); render(); return; }
+    if (action === "saveEdit") { saveEditedPerson(document.getElementById("edit-form")); return; }
     if (action.startsWith("section:")) { state.section = action.slice(8); setMessage(); render(); return; }
     if (action.startsWith("filter:")) { state.peopleFilter = action.slice(7); render(); return; }
     if (action === "openGift") { state.opened = true; document.body.classList.add("revealing"); render(); setTimeout(() => document.body.classList.remove("revealing"), 1100); return; }
