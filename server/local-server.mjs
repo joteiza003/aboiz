@@ -167,6 +167,11 @@ export function createLocalApp(options={}) {
       person.active=false;person.codeHash='';person.rev=random(10);await save();return {ok:true};
     }
     requireRole(session,['admin']);
+    if(action==='testDraw'){
+      if(activeDraw())throw fail('Ya existe un sorteo activo. Anúlalo para volver a probar.',409);
+      const people=db.people.filter(x=>x.year===YEAR&&x.active),settings={...db.config.options,exclusions:Object.fromEntries(people.map(x=>[x._id,meta(x._id).exclusions]))};
+      makeDraw(people,settings);return {ok:true,count:people.length,persisted:false,sent:false};
+    }
     if(action==='draw'){
       if(activeDraw())throw fail('Ya existe un sorteo. Anúlalo antes de generar otro.',409);
       const people=db.people.filter(x=>x.year===YEAR&&x.active),settings={...db.config.options,exclusions:Object.fromEntries(people.map(x=>[x._id,meta(x._id).exclusions]))},pairs=makeDraw(people,settings);

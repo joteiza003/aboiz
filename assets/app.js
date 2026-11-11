@@ -304,7 +304,7 @@
         ${card(`<div class="eyebrow">Sorteo</div><h2>Preparar el momento</h2><p class="lead">El sorteo crea una asignación secreta para cada participante y bloquea la lista.</p>${drawRing(active)}
           <form id="draw-options-form" class="stack-form draw-options"><label class="toggle"><input type="checkbox" name="noMutual" ${data.options?.noMutual !== false ? "checked" : ""}> Evitar parejas recíprocas (A regala a B y B a A)</label>
           <div class="grid2"><label class="f">Pareja fija: regala<select class="in" name="fixedGiverId"><option value="">Ninguna</option>${active.map(x=>`<option value="${escapeHtml(x._id)}" ${data.options?.fixedGiverId===x._id?"selected":""}>${escapeHtml(x.name)}</option>`).join("")}</select></label><label class="f">Pareja fija: recibe<select class="in" name="fixedReceiverId"><option value="">Ninguna</option>${active.map(x=>`<option value="${escapeHtml(x._id)}" ${data.options?.fixedReceiverId===x._id?"selected":""}>${escapeHtml(x.name)}</option>`).join("")}</select></label></div><button class="btn" type="submit">Guardar reglas</button></form>
-          <div class="check-list"><p class="${active.length >= 3 ? "checked" : ""}">Hay al menos tres participantes activos</p><p class="checked">Nadie puede regalarse a sí mismo</p><p class="checked">Se respetan las exclusiones personales</p><p class="checked">Los resultados solo serán visibles para Joseba</p></div><button class="btn primary big" type="button" data-action="draw" ${active.length < 3 ? "disabled" : ""}>Realizar sorteo definitivo</button>`, "draw-card")}
+          <div class="check-list"><p class="${active.length >= 3 ? "checked" : ""}">Hay al menos tres participantes activos</p><p class="checked">Nadie puede regalarse a sí mismo</p><p class="checked">Se respetan las exclusiones personales</p><p class="checked">Los resultados solo serán visibles para Joseba</p></div><div class="btns"><button class="btn" type="button" data-action="testDraw" ${active.length < 3 ? "disabled" : ""}>Probar reglas sin guardar</button><button class="btn primary" type="button" data-action="draw" ${active.length < 3 ? "disabled" : ""}>Realizar sorteo definitivo</button></div><p class="small">La prueba no guarda parejas, no genera códigos y no envía nada.</p>`, "draw-card")}
         ${card(`<h3>Antes de continuar</h3><p class="lead">Revisa nombres y correos. Después del sorteo solo podrás hacer cambios anulándolo, lo que invalidará todos los códigos enviados.</p>`)}
       `;
     }
@@ -496,8 +496,8 @@
         setMessage("", "Participante añadido.");
       });
     } else if (form.id === "edit-form") {
+      state.modal = null;
       task(async () => {
-        state.modal = null;
         await request("updatePerson", { id: values.get("id"), name: values.get("name"), email: values.get("email"), note: values.get("note"), exclusions: values.getAll("exclusion") });
         await refresh();
         setMessage("", "Participante actualizado.");
@@ -552,6 +552,7 @@
     if(action==="whatsappMessage"&&state.lastIssued){window.open("https://wa.me/?text="+encodeURIComponent(deliveryMessage(state.lastIssued)),"_blank","noopener,noreferrer");return;}
     if(action.startsWith("delivered:")){const id=action.slice(10),person=state.info.people.find(x=>x._id===id);task(async()=>{await request("markDelivered",{id,sent:!person.sent});await refresh();setMessage("",person.sent?"Entrega desmarcada.":"Entrega marcada como enviada.");});return;}
     if (action === "draw") { confirmAction("Realizar el sorteo", "La lista quedará bloqueada y se creará una asignación secreta para cada participante.", "draw", "Realizar sorteo"); return; }
+    if (action === "testDraw") { task(async () => { const result=await request("testDraw"); setMessage("", `Prueba correcta: ${result.count} participantes, sin guardar resultados ni enviar nada.`); }); return; }
     if (action === "resetDraw") { confirmAction("Anular el sorteo", "Se invalidarán todos los códigos personales enviados. Esta acción no se puede deshacer.", "resetDraw", "Anular definitivamente", true); return; }
     if (action.startsWith("issue:")) {
       const person = state.info.people.find(item => item._id === action.slice(6));

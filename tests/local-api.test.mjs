@@ -22,6 +22,9 @@ test('flujo local completo con roles, sorteo, deseos y revocación',async t=>{
   assert.equal((await call('updatePerson',{token:manager,id:anaBefore._id,name:'Ana',email:'ana@example.com',note:'Le gusta el verde',exclusions:[beaBefore._id]})).status,200);
   assert.equal((await call('saveDrawOptions',{token:admin,noMutual:false})).status,200);
   assert.equal((await call('draw',{token:manager})).status,403,'David no puede sortear');
+  const testDraw=await call('testDraw',{token:admin});
+  assert.equal(testDraw.status,200);assert.equal(testDraw.body.persisted,false);assert.equal(testDraw.body.sent,false);
+  assert.equal((await call('me',{token:admin})).body.drawReady,false,'la prueba no guarda el sorteo');
   assert.equal((await call('draw',{token:admin})).status,200);
   const adminView=(await call('me',{token:admin})).body;
   assert.equal(adminView.pairs.length,4);
@@ -39,8 +42,11 @@ test('flujo local completo con roles, sorteo, deseos y revocación',async t=>{
   assert.deepEqual(guestView.myWishes,{selected:['moda'],other:'Color verde'});
   assert.ok(guestView.gift?.name);
   assert.equal(guestView.event.place,'Garai');
-  await call('issueCode',{token:admin,id:ana._id});
+  const replacement=(await call('issueCode',{token:admin,id:ana._id})).body;
   assert.equal((await call('me',{token:guest})).status,401,'regenerar el código revoca la sesión anterior');
+  assert.equal((await call('invalidateDraw',{token:admin})).status,200);
+  assert.equal((await call('codeLogin',{code:replacement.code})).status,401,'resetear revoca también el último código');
+  assert.equal((await call('me',{token:admin})).body.drawReady,false,'el sorteo puede resetearse');
 });
 
 test('los códigos locales sobreviven al reinicio del servidor',async t=>{

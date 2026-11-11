@@ -192,6 +192,14 @@ async function handler(action,data){
    await wixData.update(DB.people,x,OPT);return {ok:true};
  }
  requireRole(p,['admin']);
+ if(action==='testDraw'){
+   if(await currentDraw())err('Ya existe un sorteo activo. Anúlalo para volver a probar.',409);
+   const people=(await all(DB.people)).filter(x=>x.year===YEAR&&x.active),cfg=await getConfig();let fixedGiver='',fixedReceiver='';
+   try{fixedGiver=(await secret(SECRET_NAMES.fixedGiver))||'';}catch(e){}try{fixedReceiver=(await secret(SECRET_NAMES.fixedReceiver))||'';}catch(e){}
+   if(Boolean(fixedGiver)!==Boolean(fixedReceiver))err('Configura ambos secretos de pareja fija o ninguno',503);
+   const exclusions=Object.fromEntries(people.map(x=>[x._id,personMeta(cfg.value,x._id).exclusions]));makeDraw(people,{...cfg.value.options,exclusions,fixedGiver,fixedReceiver});
+   return {ok:true,count:people.length,persisted:false,sent:false};
+ }
  if(action==='draw'){
    if(await currentDraw())err('Ya existe un sorteo. Anúlalo antes de generar otro.',409);
    const people=(await all(DB.people)).filter(x=>x.year===YEAR&&x.active);
