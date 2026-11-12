@@ -35,6 +35,7 @@
     notice: "",
     error: "",
     busy: false,
+    busyLabel: "Cargando",
     lastIssued: null,
     issuedBatch: [],
     peopleFilter: "active",
@@ -92,9 +93,10 @@
     return data;
   }
 
-  async function task(work) {
+  async function task(work, label = "Procesando") {
     if (state.busy) return;
     state.busy = true;
+    state.busyLabel = label;
     setMessage();
     render();
     try {
@@ -103,8 +105,15 @@
       setMessage(error.message || "Error inesperado");
     } finally {
       state.busy = false;
+      state.busyLabel = "Cargando";
       render();
     }
+  }
+
+  function loadingLayer() {
+    if (!state.busy) return "";
+    const label = escapeHtml(state.busyLabel || "Procesando");
+    return `<div class="loading-overlay" role="status" aria-live="polite" aria-label="${label}"><div class="loading-jewel" aria-hidden="true"><i></i><i></i><i></i><b>✦</b></div><span>${label}</span></div>`;
   }
 
   function renderHome() {
@@ -480,7 +489,7 @@
     else if (state.view === "login") html = renderLogin();
     else if (state.view === "code") html = renderCodeLogin();
     else html = renderPanel();
-    setContent(html);
+    setContent(html + loadingLayer());
   }
 
   function setLogin(role, token) {
@@ -516,19 +525,19 @@
     const values=new FormData(form);
     const payload={id:values.get("id"),name:values.get("name"),email:values.get("email"),note:values.get("note"),exclusions:values.getAll("exclusion")};
     state.modal=null;
-    task(async()=>{const result=await request("updatePerson",payload);await refresh();setMessage("",result.metaSaved===false?"Nombre y correo actualizados. Las pistas no pudieron guardarse; inténtalo de nuevo.":"Participante actualizado correctamente.");});
+    task(async()=>{const result=await request("updatePerson",payload);await refresh();setMessage("",result.metaSaved===false?"Nombre y correo actualizados. Las pistas no pudieron guardarse; inténtalo de nuevo.":"Participante actualizado correctamente.");},"Guardando");
   }
 
   async function performConfirmed(action) {
     state.modal = null;
     if (action === "draw") {
-      await task(async () => { const result=await request("draw");state.issuedBatch=Array.isArray(result.issued)?result.issued:[];state.lastIssued=state.issuedBatch[0]||null;await refresh();state.section="delivery";celebrate();setMessage("",`Sorteo realizado y ${result.count||state.issuedBatch.length} códigos generados.`); });
+      await task(async () => { const result=await request("draw");state.issuedBatch=Array.isArray(result.issued)?result.issued:[];state.lastIssued=state.issuedBatch[0]||null;await refresh();state.section="delivery";celebrate();setMessage("",`Sorteo realizado y ${result.count||state.issuedBatch.length} códigos generados.`); },"Generando");
     } else if (action === "resetDraw") {
-      await task(async () => { await request("invalidateDraw"); state.lastIssued = null; state.issuedBatch = []; await refresh(); state.section = "overview"; setMessage("", "Sorteo anulado y códigos invalidados."); });
+      await task(async () => { await request("invalidateDraw"); state.lastIssued = null; state.issuedBatch = []; await refresh(); state.section = "overview"; setMessage("", "Sorteo anulado y códigos invalidados."); },"Procesando");
     } else if (action.startsWith("remove:")) {
-      await task(async () => { await request("removePerson", { id: action.slice(7) }); await refresh(); setMessage("", "Participante retirado."); });
+      await task(async () => { await request("removePerson", { id: action.slice(7) }); await refresh(); setMessage("", "Participante retirado."); },"Guardando");
     } else if (action.startsWith("issue:")) {
-      await task(async () => { state.lastIssued = await request("issueCode", { id: action.slice(6) }); state.lastIssued.id=action.slice(6); state.issuedBatch=state.issuedBatch.filter(item=>item.id!==state.lastIssued.id); await refresh(); state.section = "delivery"; setMessage("", "Invitación regenerada. El código anterior ya no funciona."); });
+      await task(async () => { state.lastIssued = await request("issueCode", { id: action.slice(6) }); state.lastIssued.id=action.slice(6); state.issuedBatch=state.issuedBatch.filter(item=>item.id!==state.lastIssued.id); await refresh(); state.section = "delivery"; setMessage("", "Invitación regenerada. El código anterior ya no funciona."); },"Generando");
     } else if (action === "clearWishes") {
       await task(async () => {
         await request("saveWish", { selected: [], other: "" });
@@ -538,7 +547,7 @@
         state.wishOnboarding = false;
         state.section = returnToGift ? "reveal" : "wishes";
         setMessage("", returnToGift ? "Has dejado la lista en blanco. Ya puedes abrir tu regalo." : "Tu lista se ha dejado en blanco.");
-      });
+      },"Guardando");
     }
   }
 
@@ -551,25 +560,25 @@
         const response = await request("login", { mode: state.loginMode, password: String(values.get("password")) });
         setLogin(response.role, response.token);
         await refresh();
-      });
+      }, "Accediendo");
     } else if (form.id === "code-form") {
       task(async () => {
         const response = await request("codeLogin", { code: String(values.get("code")).trim() });
         setLogin(response.role, response.token);
         await refresh();
-      });
+      }, "Accediendo");
     } else if (form.id === "add-form") {
       task(async () => {
         await request("addPerson", { name: values.get("name"), email: values.get("email") });
         await refresh();
         setMessage("", "Participante añadido.");
-      });
+      }, "Guardando");
     } else if (form.id === "edit-form") {
       saveEditedPerson(form);
     } else if (form.id === "event-form") {
-      task(async () => { await request("saveEvent", {event:{name:values.get("name"),date:values.get("date"),place:values.get("place"),min:Number(values.get("min")),max:Number(values.get("max")),message:values.get("message"),appUrl:values.get("appUrl")}});await refresh();setMessage("","Datos del evento guardados."); });
+      task(async () => { await request("saveEvent", {event:{name:values.get("name"),date:values.get("date"),place:values.get("place"),min:Number(values.get("min")),max:Number(values.get("max")),message:values.get("message"),appUrl:values.get("appUrl")}});await refresh();setMessage("","Datos del evento guardados."); },"Guardando");
     } else if (form.id === "draw-options-form") {
-      task(async () => { await request("saveDrawOptions",{noMutual:values.has("noMutual")});await refresh();setMessage("","Regla del sorteo guardada."); });
+      task(async () => { await request("saveDrawOptions",{noMutual:values.has("noMutual")});await refresh();setMessage("","Regla del sorteo guardada."); },"Guardando");
     } else if (form.id === "wish-form") {
       task(async () => {
         await request("saveWish", { selected: values.getAll("cat"), other: String(values.get("other")) });
@@ -579,7 +588,7 @@
         state.wishOnboarding = false;
         state.section = returnToGift ? "reveal" : "wishes";
         setMessage("", returnToGift ? "Tu lista está guardada. Ya puedes abrir tu regalo." : "Tus preferencias se han guardado.");
-      });
+      }, "Guardando");
     }
   });
 
@@ -632,7 +641,7 @@
       return;
     }
     if (action === "hideGift") { state.opened = false; state.opening = false; render(); return; }
-    if (action === "refreshGift") { task(async () => { await refresh(); setMessage("", "Deseos actualizados."); }); return; }
+    if (action === "refreshGift") { task(async () => { await refresh(); setMessage("", "Deseos actualizados."); }, "Cargando"); return; }
     if (action.startsWith("batchIssued:")) {
       const issued = state.issuedBatch[Number(action.slice(12))];
       if (issued) { state.lastIssued = issued; render(); }
@@ -644,9 +653,9 @@
       return;
     }
     if(action==="whatsappMessage"&&state.lastIssued){window.open("https://wa.me/?text="+encodeURIComponent(deliveryMessage(state.lastIssued)),"_blank","noopener,noreferrer");return;}
-    if(action.startsWith("delivered:")){const id=action.slice(10),person=state.info.people.find(x=>x._id===id);task(async()=>{await request("markDelivered",{id,sent:!person.sent});await refresh();setMessage("",person.sent?"Entrega desmarcada.":"Entrega marcada como enviada.");});return;}
+    if(action.startsWith("delivered:")){const id=action.slice(10),person=state.info.people.find(x=>x._id===id);task(async()=>{await request("markDelivered",{id,sent:!person.sent});await refresh();setMessage("",person.sent?"Entrega desmarcada.":"Entrega marcada como enviada.");},"Guardando");return;}
     if (action === "draw") { confirmAction("Realizar el sorteo y generar códigos", "La lista quedará bloqueada, se creará una asignación secreta y se generará un código personal para cada participante activo.", "draw", "Sortear y generar códigos"); return; }
-    if (action === "testDraw") { task(async () => { const result=await request("testDraw"); celebrate(); setMessage("", `Prueba correcta: ${result.count} participantes, sin guardar resultados ni enviar nada.`); }); return; }
+    if (action === "testDraw") { task(async () => { const result=await request("testDraw"); celebrate(); setMessage("", `Prueba correcta: ${result.count} participantes, sin guardar resultados ni enviar nada.`); }, "Comprobando"); return; }
     if (action === "resetDraw") { confirmAction("Anular el sorteo", "Se invalidarán todos los códigos personales enviados. Esta acción no se puede deshacer.", "resetDraw", "Anular definitivamente", true); return; }
     if (action.startsWith("issue:")) {
       const person = state.info.people.find(item => item._id === action.slice(6));
@@ -672,11 +681,16 @@
     if (state.token && state.role) {
       state.view = "panel";
       state.section = state.role === "guest" ? "reveal" : "overview";
+      state.busy = true;
+      state.busyLabel = "Cargando";
+      render();
       try {
         await refresh();
       } catch {
         logout();
         setMessage("La sesión ha caducado. Accede de nuevo.");
+      } finally {
+        state.busy = false;
       }
     }
     render();
