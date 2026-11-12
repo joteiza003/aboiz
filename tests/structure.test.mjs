@@ -18,7 +18,8 @@ test('la interfaz separa evento, sorteo, entrega y permisos',()=>{
  assert.doesNotMatch(js,/pareja fija|fixedGiver|fixedReceiver/i);
  assert.ok(js.includes('testDraw'));assert.match(js,/data-action="saveEdit"/);assert.match(js,/function saveEditedPerson/);
  assert.match(js,/function emailMessageUrl/);assert.match(js,/data-email-link/);
- assert.match(js,/state\.role === "admin"/);assert.match(js,/David no puede ver/);
+ assert.match(js,/state\.role === "admin"/);assert.match(js,/El acceso a participantes no puede ver/);
+ assert.match(js,/Acceso a participantes/);assert.match(js,/Cualquier persona con la contraseña/);
  assert.match(js,/giftbox premium/);assert.match(js,/state\.opening/);assert.match(js,/gift-light/);
  assert.match(js,/startWishes/);assert.match(js,/skipWishes/);assert.match(js,/wishDecisionMade/);
  assert.match(js,/issuedBatch/);assert.match(js,/batchIssued:/);assert.match(js,/Sortear y generar códigos/);

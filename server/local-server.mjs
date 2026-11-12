@@ -244,6 +244,6 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
   console.log(`\nAboiz está disponible en ${running.url}`);
   console.log('Datos locales:',running.app.config.dataDir);
   if(!process.env.ABOIZ_ADMIN_PASSWORD)console.log('Acceso Joseba:',running.app.config.adminPassword);
-  if(!process.env.ABOIZ_DAVID_PASSWORD)console.log('Acceso David:',running.app.config.managerPassword);
+  if(!process.env.ABOIZ_DAVID_PASSWORD)console.log('Acceso participantes:',running.app.config.managerPassword);
   console.log('Pulsa Ctrl+C para detener la aplicación.\n');
 }

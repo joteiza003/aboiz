@@ -49,7 +49,7 @@
   const card = (content, className = "") => `<section class="card ${className}">${content}</section>`;
   const statusMessages = () =>
     `${state.error ? `<div class="error" role="alert">${escapeHtml(state.error)}</div>` : ""}${state.notice ? `<div class="success" role="status">${escapeHtml(state.notice)}</div>` : ""}`;
-  const roleName = () => state.role === "admin" ? "Joseba · Administración" : state.role === "manager" ? "David · Participantes" : "Mi amigo invisible";
+  const roleName = () => state.role === "admin" ? "Joseba · Administración" : state.role === "manager" ? "Gestión de participantes" : "Mi amigo invisible";
 
   function setMessage(error = "", notice = "") {
     state.error = error;
@@ -129,7 +129,7 @@
         </button>
         <button class="access-card manager" type="button" data-action="choose-manager">
           <span class="access-icon" aria-hidden="true">◎</span>
-          <span><b>David</b><small>Altas, cambios y seguimiento de participantes</small></span><i>›</i>
+          <span><b>Acceso a participantes</b><small>Revisión, altas y cambios con contraseña compartida</small></span><i>›</i>
         </button>
         <button class="access-card guest" type="button" data-action="choose-guest">
           <span class="access-icon" aria-hidden="true">◈</span>
@@ -145,8 +145,8 @@
     return card(`
       <button type="button" class="back-link" data-action="home">← Volver</button>
       <div class="login-mark ${isAdmin ? "admin" : "manager"}">${isAdmin ? "✦" : "◎"}</div>
-      <div class="eyebrow">${isAdmin ? "Acceso de organización" : "Gestión de participantes"}</div>
-      <h2>${isAdmin ? "Hola, Joseba" : "Hola, David"}</h2>
+      <div class="eyebrow">${isAdmin ? "Acceso de organización" : "Acceso a participantes"}</div>
+      <h2>${isAdmin ? "Hola, Joseba" : "Revisa la lista"}</h2>
       <p class="lead">${isAdmin ? "Desde aquí controlas el sorteo y los códigos personales." : "Desde aquí mantienes la lista de participantes, sin ver emparejamientos."}</p>
       ${statusMessages()}
       <form id="login-form" class="stack-form">
@@ -240,7 +240,7 @@
           ${state.role === "admin" ? button("section:" + (data.drawReady ? "delivery" : "draw"), data.drawReady ? "Preparar entregas" : "Ir al sorteo") : button("section:wishes", "Ver seguimiento")}
         </div>
       `)}
-      ${state.role === "manager" ? card(`<h3>Qué puede hacer David</h3><ul class="plain-list"><li>Añadir, corregir o retirar personas antes del sorteo.</li><li>Comprobar quién ha preparado su lista de deseos.</li><li>No puede ver parejas, generar códigos ni anular el sorteo.</li></ul>`, "role-explainer") : ""}
+      ${state.role === "manager" ? card(`<h3>Qué permite este acceso</h3><ul class="plain-list"><li>Cualquier persona con la contraseña puede revisar la lista.</li><li>Puede añadir, corregir o retirar personas antes del sorteo.</li><li>Puede comprobar quién ha preparado su lista de deseos.</li><li>No permite ver parejas, generar códigos ni anular el sorteo.</li></ul>`, "role-explainer") : ""}
     `;
   }
 
@@ -446,7 +446,7 @@
   function guestHelp() {
     return `
       ${card(`<div class="eyebrow">Ayuda</div><h2>Cómo funciona</h2><div class="help-steps"><article><b>1</b><p>Guarda tus deseos si quieres. Son orientativos y opcionales.</p></article><article><b>2</b><p>Abre la caja para descubrir únicamente a quién te toca regalar.</p></article><article><b>3</b><p>Elige el regalo en secreto y disfruta del encuentro en Aboiz.</p></article></div>`)}
-      ${card(`<h3>Privacidad y códigos</h3><ul class="plain-list"><li>Tu código es personal: no lo reenvíes.</li><li>Joseba puede regenerarlo; el anterior quedará invalidado.</li><li>David no puede ver los emparejamientos.</li><li>Cierra la sesión si utilizas un dispositivo compartido.</li></ul>`)}
+      ${card(`<h3>Privacidad y códigos</h3><ul class="plain-list"><li>Tu código es personal: no lo reenvíes.</li><li>Joseba puede regenerarlo; el anterior quedará invalidado.</li><li>El acceso a participantes no puede ver los emparejamientos.</li><li>Cierra la sesión si utilizas un dispositivo compartido.</li></ul>`)}
     `;
   }
 

@@ -1,6 +1,6 @@
 # Amigo Invisible Aboiz — GitHub Pages + Wix CMS
 
-Aplicación móvil de **una página**, con acceso **Administración (Joseba)**, **Participantes (David)** y **Código personal**. Interfaz inspirada en la V9: fotografía de Aboiz, verde oscuro, tarjetas claras y caja animada. Lista de deseos **totalmente opcional**, con 7 categorías y texto libre.
+Aplicación móvil de **una página**, con acceso **Administración (Joseba)**, **Acceso a participantes** mediante contraseña compartida y **Código personal**. Interfaz inspirada en la V9: fotografía de Aboiz, verde oscuro, tarjetas claras y caja animada. Lista de deseos **totalmente opcional**, con 7 categorías y texto libre.
 
 La carpeta incluye un **servidor local completo** para utilizar y probar todo el recorrido sin servicios externos. Para publicar la web en Internet, se mantiene el backend privado de Wix Studio, que requiere instalación y publicación autorizadas en tu cuenta.
 
@@ -39,7 +39,7 @@ Ejecuta `npm test` para validar el flujo completo. Las credenciales locales pred
 
 ### Resumen seguridad
 
-Tres colecciones CMS exclusivas con permisos ADMIN: `AI26_Participantes`, `AI26_Sorteos`, `AI26_Deseos`. Los participantes reciben códigos aleatorios y el backend guarda solo su hash. David no recibe emparejamientos. Los visitantes no acceden al CMS directamente. Los secretos se gestionan **solo en Wix Secrets Manager**. Sesiones de 4 horas y revocación de códigos. **No distribuir códigos por GitHub ni ponerlos en el repositorio.**
+Tres colecciones CMS exclusivas con permisos ADMIN: `AI26_Participantes`, `AI26_Sorteos`, `AI26_Deseos`. Los participantes reciben códigos aleatorios y el backend guarda solo su hash. El acceso compartido a participantes no recibe emparejamientos. Los visitantes no acceden al CMS directamente. Los secretos se gestionan **solo en Wix Secrets Manager**. Sesiones de 4 horas y revocación de códigos. **No distribuir códigos por GitHub ni ponerlos en el repositorio.**
 
 `noindex` desaconseja la indexación, **no** convierte en privada la página ni garantiza desaparición de todos los buscadores. El repositorio público seguirá siendo visible en GitHub; no se incluyen datos reales.
 
