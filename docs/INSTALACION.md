@@ -63,7 +63,7 @@ Añade los siguientes **4 secretos obligatorios**, valores únicos y fuertes:
 | Nombre secreto | Contenido |
 |---|---|
 | `ABOIZ_ADMIN_PASSWORD` | Contraseña de Joseba, **mínimo 16 caracteres**, única. Preferible 24+ aleatorios. |
-| `ABOIZ_DAVID_PASSWORD` | Contraseña independiente de David, **mínimo 16 caracteres**. |
+| `ABOIZ_DAVID_PASSWORD` | Contraseña compartida del acceso a participantes, **mínimo 14 caracteres**. |
 | `ABOIZ_SIGNING_KEY` | Cadena aleatoria impredecible de 32+ bytes para firmar sesiones. |
 | `ABOIZ_CODE_PEPPER` | Otra cadena aleatoria de 32+ bytes para proteger hashes de códigos. |
 

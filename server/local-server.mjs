@@ -106,7 +106,8 @@ export function createLocalApp(options={}) {
     if(action==='login'){
       const mode=text(input.mode,15), password=String(input.password||'');
       const expected=mode==='admin'?adminPassword:mode==='manager'?managerPassword:null;
-      if(!expected||password.length<16||!safeEqual(hash(password),hash(expected)))throw fail('Credenciales incorrectas',401);
+      const minimumLength=mode==='manager'?14:16;
+      if(!expected||password.length<minimumLength||!safeEqual(hash(password),hash(expected)))throw fail('Credenciales incorrectas',401);
       const role=mode==='admin'?'admin':'manager';
       return {token:sign(role,mode),role};
     }

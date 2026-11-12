@@ -8,14 +8,16 @@ import { startLocalServer } from '../server/local-server.mjs';
 test('flujo local completo con roles, sorteo, deseos y revocación',async t=>{
   const ruleA=Buffer.from('SnVsZW4gTMOzcGV6','base64').toString('utf8'),ruleB=Buffer.from('Sm9zZWJh','base64').toString('utf8');
   const dataDir=await fs.mkdtemp(path.join(os.tmpdir(),'aboiz-test-'));
-  const running=await startLocalServer({port:0,dataDir,adminPassword:'Admin-super-segura-123',managerPassword:'David-super-segura-123',signingKey:'test-signing-key',pepper:'test-pepper'});
+  const running=await startLocalServer({port:0,dataDir,adminPassword:'Admin-super-segura-123',managerPassword:'Gestor-clave14',signingKey:'test-signing-key',pepper:'test-pepper'});
   t.after(async()=>{await new Promise(resolve=>running.server.close(resolve));await fs.rm(dataDir,{recursive:true,force:true});});
   const call=async(action,params={})=>{
     const response=await fetch(running.url+'/api/aboiz26',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...params})});
     const body=await response.json();return {status:response.status,body};
   };
   const admin=(await call('login',{mode:'admin',password:'Admin-super-segura-123'})).body.token;
-  const manager=(await call('login',{mode:'manager',password:'David-super-segura-123'})).body.token;
+  const managerLogin=await call('login',{mode:'manager',password:'Gestor-clave14'});
+  assert.equal(managerLogin.status,200,'el acceso a participantes admite una contraseña de 14 caracteres');
+  const manager=managerLogin.body.token;
   for(const [name,email] of [['Ana','ana@example.com'],['Bea','bea@example.com'],['Carlos','carlos@example.com'],['Diana','diana@example.com'],[ruleA,'a@example.com'],[ruleB,'b@example.com']])assert.equal((await call('addPerson',{token:manager,name,email})).status,200);
   const before=(await call('me',{token:admin})).body;
   const anaBefore=before.people.find(person=>person.name==='Ana'),beaBefore=before.people.find(person=>person.name==='Bea');
