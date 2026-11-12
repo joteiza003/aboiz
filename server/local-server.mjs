@@ -14,6 +14,8 @@ const MIME = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset
 const text = (value, max) => String(value ?? '').trim().slice(0, max);
 const normalize = value => text(value, 200).normalize('NFKC').toLocaleLowerCase('es');
 const random = bytes => crypto.randomBytes(bytes).toString('base64url');
+const CODE_CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const accessCode=()=>{let value='';for(let i=0;i<10;i++)value+=CODE_CHARS[crypto.randomInt(CODE_CHARS.length)];return `AB26-${value.slice(0,5)}-${value.slice(5)}`;};
 const hash = value => crypto.createHash('sha256').update(String(value)).digest('hex');
 const safeEqual = (a,b) => {
   const left=Buffer.from(String(a)), right=Buffer.from(String(b));
@@ -110,7 +112,7 @@ export function createLocalApp(options={}) {
     }
     if(action==='codeLogin'){
       const code=text(input.code,100);
-      if(!/^AB26-[A-Za-z0-9_-]{30,60}$/.test(code))throw fail('Código no válido',401);
+      if(!/^AB26-(?:[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}|[A-Za-z0-9_-]{30,60})$/.test(code))throw fail('Código no válido',401);
       const person=db.people.find(x=>x.codeHash===hash(pepper+':'+code)&&x.active);
       if(!person)throw fail('Código no válido',401);
       return {token:sign('guest',person._id,person.rev),role:'guest',name:person.name};
@@ -159,7 +161,7 @@ export function createLocalApp(options={}) {
       if(!person)throw fail('Participante no encontrado',404);
       if(name.length<2||!(!email||/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))throw fail('Nombre o correo incorrectos');
       if(db.people.some(x=>x.year===YEAR&&x._id!==person._id&&normalize(x.name)===normalize(name)))throw fail('Nombre duplicado',409);
-      person.name=name;person.email=email;const valid=new Set(db.people.filter(x=>x.year===YEAR&&x.active&&x._id!==person._id).map(x=>x._id));db.config.peopleMeta[person._id]={...meta(person._id),note:text(input.note,400),exclusions:Array.isArray(input.exclusions)?[...new Set(input.exclusions.map(x=>text(x,100)).filter(x=>valid.has(x)))]:[]};await save();return {ok:true};
+      person.name=name;person.email=email;const valid=new Set(db.people.filter(x=>x.year===YEAR&&x.active&&x._id!==person._id).map(x=>x._id));db.config.peopleMeta[person._id]={...meta(person._id),note:text(input.note,400),exclusions:Array.isArray(input.exclusions)?[...new Set(input.exclusions.map(x=>text(x,100)).filter(x=>valid.has(x)))]:[]};await save();return {ok:true,metaSaved:true,person:cleanPerson(person)};
     }
     if(action==='removePerson'){
       if(activeDraw())throw fail('Anula el sorteo antes de retirar participantes.',409);
@@ -187,7 +189,7 @@ export function createLocalApp(options={}) {
       if(!activeDraw())throw fail('Realiza primero el sorteo',409);
       const person=db.people.find(x=>x._id===text(input.id,100)&&x.year===YEAR&&x.active);
       if(!person)throw fail('Participante incorrecto',404);
-      const code='AB26-'+random(27);person.codeHash=hash(pepper+':'+code);person.rev=random(10);db.config.peopleMeta[person._id]={...meta(person._id),sent:false};await save();
+      const code=accessCode();person.codeHash=hash(pepper+':'+code);person.rev=random(10);db.config.peopleMeta[person._id]={...meta(person._id),sent:false};await save();
       return {name:person.name,email:person.email||'',code};
     }
     if(action==='markDelivered'){

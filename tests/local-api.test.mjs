@@ -39,6 +39,7 @@ test('flujo local completo con roles, sorteo, deseos y revocación',async t=>{
   assert.equal(managerView.people.find(person=>person.name==='Ana').note,'Le gusta el verde');
   const ana=adminView.people.find(person=>person.name==='Ana');
   const issued=(await call('issueCode',{token:admin,id:ana._id})).body;
+  assert.match(issued.code,/^AB26-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/);
   assert.equal((await call('markDelivered',{token:admin,id:ana._id,sent:true})).status,200);
   const guest=(await call('codeLogin',{code:issued.code})).body.token;
   assert.equal((await call('saveWish',{token:guest,selected:['moda','invalida'],other:'Color verde'})).status,200);
@@ -68,6 +69,7 @@ test('los códigos locales sobreviven al reinicio del servidor',async t=>{
   for(const name of [ruleA,ruleB,'Tres'])ids.push((await post(running.url,'addPerson',{token:admin,name})).body.person._id);
   await post(running.url,'draw',{token:admin});
   const code=(await post(running.url,'issueCode',{token:admin,id:ids[0]})).body.code;
+  assert.match(code,/^AB26-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/);
   await new Promise(resolve=>running.server.close(resolve));
   running=await startLocalServer({port:0,dataDir,adminPassword:password});
   t.after(()=>new Promise(resolve=>running.server.close(resolve)));

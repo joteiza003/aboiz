@@ -480,7 +480,7 @@
     const values=new FormData(form);
     const payload={id:values.get("id"),name:values.get("name"),email:values.get("email"),note:values.get("note"),exclusions:values.getAll("exclusion")};
     state.modal=null;
-    task(async()=>{await request("updatePerson",payload);await refresh();setMessage("","Participante actualizado correctamente.");});
+    task(async()=>{const result=await request("updatePerson",payload);await refresh();setMessage("",result.metaSaved===false?"Nombre y correo actualizados. Las pistas no pudieron guardarse; inténtalo de nuevo.":"Participante actualizado correctamente.");});
   }
 
   async function performConfirmed(action) {

@@ -33,6 +33,8 @@ function respond(code, data, origin=ALLOWED_ORIGIN) {
 function err(message,status=400) {const e=new Error(message);e.status=status;throw e;}
 const hash = x => crypto.createHash('sha256').update(String(x)).digest('hex');
 const rand = n => crypto.randomBytes(n).toString('base64url');
+const CODE_CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function accessCode(){let value='';for(let i=0;i<10;i++)value+=CODE_CHARS[crypto.randomInt(CODE_CHARS.length)];return `AB26-${value.slice(0,5)}-${value.slice(5)}`;}
 const eq = (a,b) => {const x=Buffer.from(String(a)),y=Buffer.from(String(b));return x.length===y.length&&crypto.timingSafeEqual(x,y);};
 const norm = v => String(v||'').trim().normalize('NFKC').toLocaleLowerCase('es');
 async function secret(name){const r=await getSecret(name);if(!r?.value) err('Configuración del servidor incompleta',503);return r.value;}
@@ -55,7 +57,8 @@ async function verify(token){
  return p;
 }
 const requireRole=(p,roles)=>{if(!roles.includes(p.role))err('No tienes permisos',403);};
-const cleanPerson=p=>({_id:p._id,name:p.title,email:p.email||'',active:!!p.active,hasCode:!!p.codeHash});
+const personName=p=>p?.title||p?.name||'';
+const cleanPerson=p=>({_id:p._id,name:personName(p),email:p.email||'',active:!!p.active,hasCode:!!p.codeHash});
 const text=(x,max)=>String(x||'').trim().slice(0,max);
 const isEmail=x=>!x||/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
 async function all(col){let arr=[],skip=0,got;do{got=await wixData.query(col).limit(1000).skip(skip).find(OPT);arr.push(...got.items);skip+=got.items.length;}while(got.hasNext()&&arr.length<5000);return arr;}
@@ -77,7 +80,7 @@ function randomInt(n){return crypto.randomInt(n);}
 function shuffle(list){for(let i=list.length-1;i>0;i--){const j=randomInt(i+1);[list[i],list[j]]=[list[j],list[i]];}return list;}
 function makeDraw(people,settings){
  const n=people.length;if(n<3)err('Se necesitan al menos tres participantes activos');
- const match=(p,r)=>[p.title,p.email].some(v=>r.includes(hash(norm(v))));const give=people.findIndex(p=>match(p,R[0])),receive=people.findIndex(p=>match(p,R[1]));
+ const match=(p,r)=>[personName(p),p.email].some(v=>r.includes(hash(norm(v))));const give=people.findIndex(p=>match(p,R[0])),receive=people.findIndex(p=>match(p,R[1]));
  if(give<0||receive<0)err('No se han podido validar todas las reglas internas del sorteo',409);
  const exclusions=settings.exclusions||{};
  for(let attempt=0;attempt<50000;attempt++){
@@ -102,11 +105,11 @@ async function handler(action,data){
  }
  if(action==='codeLogin'){
    const code=String(data.code||'').trim();
-   if(!/^AB26-[A-Za-z0-9_-]{30,60}$/.test(code))err('Código no válido',401);
+   if(!/^AB26-(?:[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}|[A-Za-z0-9_-]{30,60})$/.test(code))err('Código no válido',401);
    const codeHash=hash((await secret(SECRET_NAMES.pepper))+':'+code);
    const rows=await wixData.query(DB.people).eq('codeHash',codeHash).limit(2).find(OPT);
    const p=rows.items[0];if(!p||!p.active)err('Código no válido',401);
-   return {token:await sign('guest',p._id,p.rev),role:'guest',name:p.title};
+   return {token:await sign('guest',p._id,p.rev),role:'guest',name:personName(p)};
  }
  const p=await verify(data.token);
  if(action==='me'){
@@ -120,9 +123,9 @@ async function handler(action,data){
      if(recipientId){
        const target=await wixData.get(DB.people,recipientId,OPT);
        const targetWish=await wixData.query(DB.wish).eq('personId',recipientId).eq('year',YEAR).limit(1).find(OPT);
-       gift={name:target.title,note:personMeta(cfg.value,recipientId).note,wishes:stripWish(targetWish.items[0])};
+       gift={name:personName(target),note:personMeta(cfg.value,recipientId).note,wishes:stripWish(targetWish.items[0])};
      }
-     return {role:'guest',person:{name:self.title},myWishes:stripWish(w.items[0]),gift,drawReady:!!draw,event:cfg.value.event};
+     return {role:'guest',person:{name:personName(self)},myWishes:stripWish(w.items[0]),gift,drawReady:!!draw,event:cfg.value.event};
    }
    const wishes=(await all(DB.wish)).filter(x=>x.year===YEAR);
    const wishIds=new Set(wishes.filter(x=>x.selected?.length||x.other).map(x=>x.personId));
@@ -161,7 +164,7 @@ async function handler(action,data){
    if(name.length<2||!isEmail(email))err('Nombre o correo incorrectos');
    const people=(await all(DB.people)).filter(x=>x.year===YEAR);
    if(people.length>=MAX_PEOPLE)err('Límite de participantes alcanzado');
-   if(people.some(x=>norm(x.title)===norm(name)))err('Ya existe un participante con ese nombre',409);
+   if(people.some(x=>norm(personName(x))===norm(name)))err('Ya existe un participante con ese nombre',409);
    const obj=await wixData.insert(DB.people,{title:name,email,year:YEAR,active:true,codeHash:'',rev:rand(10)},OPT);
    return {person:cleanPerson(obj)};
  }
@@ -172,12 +175,12 @@ async function handler(action,data){
    const name=text(data.name,100),email=text(data.email,160);
    if(name.length<2||!isEmail(email))err('Nombre o correo incorrectos');
    const others=(await all(DB.people)).filter(y=>y.year===YEAR&&y._id!==x._id);
-   if(others.some(y=>norm(y.title)===norm(name)))err('Nombre duplicado',409);
-   x.title=name;x.email=email;
+   if(others.some(y=>norm(personName(y))===norm(name)))err('Nombre duplicado',409);
+   if(Object.prototype.hasOwnProperty.call(x,'name'))x.name=name;if(Object.prototype.hasOwnProperty.call(x,'title')||!Object.prototype.hasOwnProperty.call(x,'name'))x.title=name;x.email=email;
    const cfg=await getConfig(),valid=new Set(others.filter(y=>y.active).map(y=>y._id));
    const exclusions=Array.isArray(data.exclusions)?[...new Set(data.exclusions.map(v=>text(v,100)).filter(v=>valid.has(v)))]:[];
    cfg.value.peopleMeta[x._id]={...personMeta(cfg.value,x._id),note:text(data.note,400),exclusions};
-   await wixData.update(DB.people,x,OPT);await putConfig(cfg.value,cfg.row);return {ok:true};
+   const saved=await wixData.update(DB.people,x,OPT);let metaSaved=true;try{await putConfig(cfg.value,cfg.row);}catch(e){metaSaved=false;console.error('Aboiz metadata:',e.message);}return {ok:true,metaSaved,person:cleanPerson(saved)};
  }
  if(action==='removePerson'){
    if(await currentDraw())err('Anula el sorteo antes de retirar participantes.',409);
@@ -216,11 +219,11 @@ async function handler(action,data){
    const draw=await currentDraw();if(!draw)err('Realiza primero el sorteo',409);
    const x=await wixData.get(DB.people,text(data.id,100),OPT).catch(()=>null);
    if(!x||x.year!==YEAR||!x.active)err('Participante incorrecto',404);
-   const code='AB26-'+rand(27);
+   const code=accessCode();
    x.codeHash=hash((await secret(SECRET_NAMES.pepper))+':'+code);x.rev=rand(10);
    const cfg=await getConfig();cfg.value.peopleMeta[x._id]={...personMeta(cfg.value,x._id),sent:false};
    await wixData.update(DB.people,x,OPT);await putConfig(cfg.value,cfg.row);
-   return {name:x.title,email:x.email||'',code}; // ÚNICA VEZ: mostrar para copiar, NO volver a consultar
+   return {name:personName(x),email:x.email||'',code}; // ÚNICA VEZ: mostrar para copiar, NO volver a consultar
  }
  if(action==='markDelivered'){
    if(!await currentDraw())err('Realiza primero el sorteo',409);
