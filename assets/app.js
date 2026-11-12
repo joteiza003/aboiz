@@ -443,9 +443,15 @@
   function renderPanel() {
     if (!state.info) return card(`<h2>Conectando…</h2>${statusMessages()}`);
     let content;
+    let showNavigation = true;
     if (state.role === "guest") {
       if (!["reveal", "wishes", "help"].includes(state.section)) state.section = "reveal";
-      content = state.section === "reveal" ? guestReveal() : state.section === "wishes" ? guestWishes() : guestHelp();
+      if (!state.wishDecisionMade) {
+        content = guestReveal();
+        showNavigation = false;
+      } else {
+        content = state.section === "reveal" ? guestReveal() : state.section === "wishes" ? guestWishes() : guestHelp();
+      }
     } else {
       const allowed = state.role === "admin" ? ["overview", "event", "people", "draw", "delivery", "wishes"] : ["overview", "people", "wishes"];
       if (!allowed.includes(state.section)) state.section = "overview";
@@ -454,7 +460,7 @@
         state.section === "draw" ? adminDraw() :
         state.section === "delivery" ? adminCodes() : staffWishes();
     }
-    return `<div class="panel-shell ${state.busy ? "overlay-wait" : ""}">${panelHeader()}<div class="enter">${content}</div></div>${panelNavigation()}${celebrationLayer()}${renderModal()}`;
+    return `<div class="panel-shell ${state.busy ? "overlay-wait" : ""}">${panelHeader()}<div class="enter">${content}</div></div>${showNavigation ? panelNavigation() : ""}${celebrationLayer()}${renderModal()}`;
   }
 
   function renderModal() {

@@ -9,6 +9,7 @@ test('solo 3 colecciones aisladas, permiso ADMIN',()=>{
 });
 test('HTML bloquea indexación y tiene tres opciones',()=>{
  const s=read('index.html'),js=read('assets/app.js');assert.match(s,/noindex/);
+ assert.match(s,/app\.js\?v=/);assert.match(s,/style\.css\?v=/);
  for(const val of ['choose-admin','choose-manager','choose-guest'])assert.ok(js.includes(val));
 });
 test('la interfaz separa evento, sorteo, entrega y permisos',()=>{
