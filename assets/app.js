@@ -38,6 +38,10 @@
     busyLabel: "Cargando",
     lastIssued: null,
     issuedBatch: [],
+    results: [],
+    resultsUnlocked: false,
+    resultTapCount: 0,
+    lastResultTap: 0,
     peopleFilter: "active",
     peopleSearch: "",
     modal: null,
@@ -333,7 +337,7 @@
       `;
     }
     return `
-      ${card(`<div class="section-title"><div><div class="eyebrow">Sorteo</div><h2>Resultado protegido</h2></div><span class="status-pill live">Realizado</span></div><p class="lead">Solo este acceso administrativo puede consultar las parejas.</p><div class="pair-list">${(data.pairs || []).map(pair => `<article><span>${escapeHtml(pair.from)}</span><i aria-hidden="true">→</i><strong>${escapeHtml(pair.to)}</strong></article>`).join("")}</div>`)}
+      ${state.resultsUnlocked ? card(`<div class="section-title"><div><div class="eyebrow">Sorteo</div><h2>Resultado protegido</h2></div><span class="status-pill live">Realizado</span></div><p class="lead">Solo este acceso administrativo puede consultar las parejas.</p><div class="pair-list">${state.results.map(pair => `<article><span>${escapeHtml(pair.from)}</span><i aria-hidden="true">→</i><strong>${escapeHtml(pair.to)}</strong></article>`).join("")}</div>`) : ""}
       ${card(`<h3>Zona de riesgo</h3><p class="lead">Anular el sorteo borra la asignación activa e invalida todos los códigos personales. Las listas de deseos se conservan.</p>${button("resetDraw", "Anular sorteo y códigos", "btn danger")}`, "danger-zone")}
     `;
   }
@@ -500,13 +504,17 @@
     state.opening = false;
     state.wishDecisionMade = role !== "guest";
     state.wishOnboarding = false;
+    state.results = [];
+    state.resultsUnlocked = false;
+    state.resultTapCount = 0;
+    state.lastResultTap = 0;
     state.view = "panel";
     sessionStorage.setItem("aboiz_auth", token);
     sessionStorage.setItem("aboiz_role", role);
   }
 
   function logout() {
-    Object.assign(state, { token: "", role: "", info: null, lastIssued: null, issuedBatch: [], view: "home", section: "overview", opened: false, opening: false, wishDecisionMade: false, wishOnboarding: false, modal: null });
+    Object.assign(state, { token: "", role: "", info: null, lastIssued: null, issuedBatch: [], results: [], resultsUnlocked: false, resultTapCount: 0, lastResultTap: 0, view: "home", section: "overview", opened: false, opening: false, wishDecisionMade: false, wishOnboarding: false, modal: null });
     sessionStorage.removeItem("aboiz_auth");
     sessionStorage.removeItem("aboiz_role");
   }
@@ -531,9 +539,9 @@
   async function performConfirmed(action) {
     state.modal = null;
     if (action === "draw") {
-      await task(async () => { const result=await request("draw");state.issuedBatch=Array.isArray(result.issued)?result.issued:[];state.lastIssued=state.issuedBatch[0]||null;await refresh();state.section="delivery";celebrate();setMessage("",`Sorteo realizado y ${result.count||state.issuedBatch.length} códigos generados.`); },"Generando");
+      await task(async () => { const result=await request("draw");state.issuedBatch=Array.isArray(result.issued)?result.issued:[];state.lastIssued=state.issuedBatch[0]||null;state.results=[];state.resultsUnlocked=false;state.resultTapCount=0;await refresh();state.section="delivery";celebrate();setMessage("",`Sorteo realizado y ${result.count||state.issuedBatch.length} códigos generados.`); },"Generando");
     } else if (action === "resetDraw") {
-      await task(async () => { await request("invalidateDraw"); state.lastIssued = null; state.issuedBatch = []; await refresh(); state.section = "overview"; setMessage("", "Sorteo anulado y códigos invalidados."); },"Procesando");
+      await task(async () => { await request("invalidateDraw"); state.lastIssued = null; state.issuedBatch = []; state.results = []; state.resultsUnlocked = false; state.resultTapCount = 0; await refresh(); state.section = "overview"; setMessage("", "Sorteo anulado y códigos invalidados."); },"Procesando");
     } else if (action.startsWith("remove:")) {
       await task(async () => { await request("removePerson", { id: action.slice(7) }); await refresh(); setMessage("", "Participante retirado."); },"Guardando");
     } else if (action.startsWith("issue:")) {
@@ -675,6 +683,29 @@
     if (action === "clearWishes") { confirmAction("Dejar la lista en blanco", "Se eliminarán tus preferencias guardadas. Podrás volver a añadirlas más adelante.", "clearWishes", "Dejar en blanco", true); return; }
     if (action === "closeModal") { state.modal = null; render(); return; }
     if (action === "modalConfirm") { const pending = state.modal?.action; if (pending) performConfirmed(pending); }
+  });
+
+  document.addEventListener("click", event => {
+    const title = event.target.closest("#secret-title");
+    if (!title) {
+      state.resultTapCount = 0;
+      state.lastResultTap = 0;
+      return;
+    }
+    if (state.role !== "admin" || state.view !== "panel" || state.resultsUnlocked || state.busy) return;
+    const now = Date.now();
+    state.resultTapCount = now - state.lastResultTap <= 2200 ? state.resultTapCount + 1 : 1;
+    state.lastResultTap = now;
+    if (state.resultTapCount < 6) return;
+    state.resultTapCount = 0;
+    state.lastResultTap = 0;
+    task(async () => {
+      const result = await request("getResults");
+      state.results = Array.isArray(result.pairs) ? result.pairs : [];
+      state.resultsUnlocked = true;
+      state.section = "draw";
+      setMessage("", "Resultados desbloqueados.");
+    }, "Cargando");
   });
 
   (async () => {

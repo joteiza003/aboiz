@@ -24,6 +24,9 @@ test('la interfaz separa evento, sorteo, entrega y permisos',()=>{
  assert.match(js,/startWishes/);assert.match(js,/skipWishes/);assert.match(js,/wishDecisionMade/);
  assert.match(js,/issuedBatch/);assert.match(js,/batchIssued:/);assert.match(js,/Sortear y generar códigos/);
  assert.match(js,/function loadingLayer/);assert.match(js,/busyLabel/);assert.match(read('assets/style.css'),/loading-jewel/);
+ assert.match(read('index.html'),/id="secret-title"/);assert.match(js,/resultTapCount/);
+ assert.match(js,/state\.resultTapCount < 6/);assert.match(js,/request\("getResults"\)/);
+ assert.match(js,/state\.resultsUnlocked \?/);
 });
 test('el modo local está configurado y sus datos no entran en Git',()=>{
  const pkg=JSON.parse(read('package.json'));assert.equal(pkg.scripts.start,'node server/local-server.mjs');

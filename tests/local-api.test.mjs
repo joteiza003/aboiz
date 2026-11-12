@@ -35,11 +35,14 @@ test('flujo local completo con roles, sorteo, deseos y revocación',async t=>{
   assert.equal(completedDraw.body.issued.length,6,'el sorteo genera un código por participante');
   assert.ok(completedDraw.body.issued.every(item=>/^AB26-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/.test(item.code)));
   const adminView=(await call('me',{token:admin})).body;
-  assert.equal(adminView.pairs.length,6);
-  assert.ok(adminView.pairs.every(pair=>pair.from!==pair.to));
-  assert.equal(adminView.pairs.find(pair=>pair.from===ruleA)?.to,ruleB);
+  assert.equal('pairs' in adminView,false,'las parejas no se cargan por defecto ni para Joseba');
   const managerView=(await call('me',{token:manager})).body;
-  assert.equal('pairs' in managerView,false,'David no recibe emparejamientos');
+  assert.equal('pairs' in managerView,false,'participantes no recibe emparejamientos');
+  assert.equal((await call('getResults',{token:manager})).status,403,'participantes no puede pedir resultados');
+  const protectedResults=(await call('getResults',{token:admin})).body.pairs;
+  assert.equal(protectedResults.length,6);
+  assert.ok(protectedResults.every(pair=>pair.from!==pair.to));
+  assert.equal(protectedResults.find(pair=>pair.from===ruleA)?.to,ruleB);
   assert.equal(managerView.event.name,'Cena Aboiz');
   assert.equal(managerView.people.find(person=>person.name==='Ana').note,'Le gusta el verde');
   assert.ok(adminView.people.every(person=>person.hasCode),'todos aparecen con código emitido');

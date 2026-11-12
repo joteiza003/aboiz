@@ -129,9 +129,14 @@ export function createLocalApp(options={}) {
       const wishIds=new Set(db.wishes.filter(x=>x.year===YEAR&&(x.selected?.length||x.other)).map(x=>x.personId));
       const people=db.people.filter(x=>x.year===YEAR).map(x=>({...cleanPerson(x),hasWish:wishIds.has(x._id),...meta(x._id)})).sort((a,b)=>a.name.localeCompare(b.name,'es'));
       const draw=activeDraw();
-      const result={role:session.role,people,drawReady:!!draw,wishesFilled:wishIds.size,event:db.config.event,options:db.config.options};
-      if(session.role==='admin'&&draw){const names=Object.fromEntries(people.map(x=>[x._id,x.name]));result.pairs=Object.entries(draw.pairs).map(([from,to])=>({from:names[from]||'(inactivo)',to:names[to]||'(inactivo)'}));}
-      return result;
+      return {role:session.role,people,drawReady:!!draw,wishesFilled:wishIds.size,event:db.config.event,options:db.config.options};
+    }
+    if(action==='getResults'){
+      requireRole(session,['admin']);
+      const draw=activeDraw();
+      if(!draw)throw fail('No hay sorteo activo',409);
+      const names=Object.fromEntries(db.people.filter(x=>x.year===YEAR).map(x=>[x._id,x.name]));
+      return {pairs:Object.entries(draw.pairs).map(([from,to])=>({from:names[from]||'(inactivo)',to:names[to]||'(inactivo)'}))};
     }
     if(action==='saveWish'){
       requireRole(session,['guest']);
