@@ -212,6 +212,75 @@ body.revealing .reveal{animation:revealFlash 1s ease both}@keyframes revealFlash
 .wish-dropdown{width:100%;text-align:left;background:rgba(250,247,234,.87);border:1px solid rgba(77,96,70,.36);border-radius:15px;padding:14px}.wish-dropdown>summary{font-weight:700;font-size:15px;color:#294a32;list-style-position:inside}.wish-dropdown[open]>summary{margin-bottom:12px}
 .preview-flag{border:1px solid #afa68e;background:rgba(249,241,218,.90);color:#34402e;border-radius:12px;padding:11px;font-size:13px}
 
+/* Caja regalo premium — papel satinado, latón pulido y apertura escénica */
+.unveil-stage{min-height:365px;perspective:1100px;padding-top:16px}
+.giftbox.premium{--wine-deep:#4d1228;--wine:#7f2943;--wine-light:#b85d70;--gold-deep:#8b652d;--gold:#d7b96e;--gold-light:#fff0b8;position:relative;width:clamp(230px,42vw,286px);height:270px;padding:0;overflow:visible;isolation:isolate;filter:none;transform-style:preserve-3d;will-change:transform}
+.giftbox.premium:focus-visible{outline:2px solid #9a6b42;outline-offset:14px;border-radius:18px}
+.giftbox.premium:disabled{cursor:wait}
+.gift-shadow{position:absolute;z-index:0;left:13%;right:13%;bottom:7px;height:29px;border-radius:50%;background:rgba(24,12,16,.38);filter:blur(13px);transform:scaleX(.92);transition:transform .7s,opacity .7s}
+.gift-body{position:absolute;z-index:2;left:13%;right:13%;bottom:24px;height:144px;overflow:hidden;border:1px solid rgba(73,20,38,.72);border-radius:4px 4px 12px 12px;background:linear-gradient(118deg,var(--wine-deep) 0%,var(--wine) 18%,var(--wine-light) 48%,#8c304a 72%,#54172e 100%);box-shadow:inset 0 2px 1px rgba(255,255,255,.24),inset -24px -9px 35px rgba(36,5,18,.28),inset 18px 0 28px rgba(255,185,189,.08),0 17px 30px rgba(42,18,24,.26);transform:translateZ(12px)}
+.gift-body::before{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 24%,rgba(255,255,255,.17) 42%,transparent 56%);transform:translateX(-130%);mix-blend-mode:screen}
+.paper-grain{position:absolute;inset:0;opacity:.22;background-image:repeating-linear-gradient(98deg,rgba(255,255,255,.13) 0 1px,transparent 1px 5px),repeating-linear-gradient(7deg,rgba(35,3,15,.12) 0 1px,transparent 1px 7px);mix-blend-mode:soft-light}
+.ribbon-v,.lid-ribbon{position:absolute;z-index:2;left:50%;top:0;bottom:0;width:40px;transform:translateX(-50%);background:linear-gradient(90deg,var(--gold-deep),#c59a4c 20%,var(--gold-light) 49%,#d6b366 66%,#8f682e);box-shadow:inset 1px 0 rgba(255,255,255,.48),inset -2px 0 rgba(78,46,10,.27)}
+.ribbon-h{position:absolute;z-index:1;left:0;right:0;top:50px;height:35px;background:linear-gradient(180deg,#9d7331,#e3c477 24%,#ffecb2 49%,#c99f52 78%,#8c632a);box-shadow:0 2px 4px rgba(53,22,10,.24),inset 0 1px rgba(255,255,255,.55)}
+.gift-seal{position:absolute;z-index:4;left:50%;top:67px;width:32px;height:32px;display:grid;place-items:center;border-radius:50%;transform:translate(-50%,-50%);font:600 17px/1 var(--font-d);font-style:normal;color:#624517;background:radial-gradient(circle at 38% 31%,#fff0ad,#c89a46 61%,#79521e);border:1px solid rgba(91,62,20,.65);box-shadow:0 3px 8px rgba(50,21,8,.34),inset 0 1px 2px rgba(255,255,255,.7)}
+.gift-lid{position:absolute;z-index:5;left:7%;right:7%;top:73px;height:57px;border:1px solid rgba(73,20,38,.75);border-radius:8px 8px 5px 5px;background:linear-gradient(116deg,#5a1730,#9a3e57 31%,#c56c7c 51%,#8c304b 76%,#54162d);box-shadow:inset 0 2px 1px rgba(255,255,255,.27),inset -18px -7px 24px rgba(38,5,18,.27),0 8px 13px rgba(38,14,19,.3);transform:translateZ(22px);transform-origin:50% 100%;will-change:transform,opacity}
+.gift-lid::after{content:"";position:absolute;left:6px;right:6px;bottom:-5px;height:7px;border-radius:0 0 5px 5px;background:#431025;opacity:.7}
+.gift-bow{position:absolute;z-index:8;left:50%;top:69px;width:1px;height:1px;transform:translateZ(34px);filter:drop-shadow(0 6px 5px rgba(44,20,4,.3));transform-style:preserve-3d;will-change:transform,opacity}
+.gift-bow i{position:absolute;display:block;font-style:normal;background:linear-gradient(135deg,#9c6f2b 5%,#e0bd68 34%,#fff0b1 53%,#bd8d3d 81%,#75501d);border:1px solid rgba(101,70,24,.68);box-shadow:inset 3px 3px 6px rgba(255,255,255,.33),inset -3px -3px 6px rgba(88,54,12,.19)}
+.gift-bow .loop{top:-35px;width:70px;height:43px}
+.gift-bow .loop.left{right:7px;border-radius:75% 24% 62% 32%;transform:rotate(13deg) skewX(-7deg);transform-origin:100% 80%}
+.gift-bow .loop.right{left:7px;border-radius:24% 75% 32% 62%;transform:rotate(-13deg) skewX(7deg);transform-origin:0 80%}
+.gift-bow .tail{top:-1px;width:29px;height:63px;clip-path:polygon(0 0,100% 0,84% 100%,50% 81%,14% 100%)}
+.gift-bow .tail.left{right:3px;transform:rotate(22deg);transform-origin:100% 0}
+.gift-bow .tail.right{left:3px;transform:rotate(-22deg);transform-origin:0 0}
+.gift-bow .knot{z-index:3;left:-16px;top:-18px;width:32px;height:27px;border-radius:48% 52% 45% 55%;background:radial-gradient(circle at 35% 28%,#fff3bd,#d0a652 58%,#8a6228)}
+.gift-tag{position:absolute;z-index:7;right:1px;top:137px;padding:6px 10px 5px;border-radius:2px 7px 7px 2px;transform:rotate(7deg) translateZ(31px);font:700 8px/1 var(--font-b);letter-spacing:.2em;color:#68451c;background:linear-gradient(135deg,#fff9e8,#e9d6a7);border:1px solid #c5a66a;box-shadow:0 5px 9px rgba(50,25,9,.19)}
+.gift-tag::before{content:"";position:absolute;left:-4px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:#7d2942;border:1px solid #a68049}
+.gift-light{position:absolute;z-index:1;left:50%;top:105px;width:130px;height:130px;border-radius:50%;transform:translate(-50%,-50%) scale(.25);background:radial-gradient(circle,#fffce4 0%,#ffe29a 24%,rgba(224,168,73,.52) 48%,transparent 72%);filter:blur(4px);opacity:0;pointer-events:none}
+.gift-ambient{position:absolute;z-index:9;left:50%;top:48%;width:min(360px,100%);height:270px;transform:translate(-50%,-50%);pointer-events:none}
+.gift-ambient i{--angle:calc(var(--spark)*36deg);position:absolute;left:50%;top:55%;width:5px;height:5px;border-radius:50%;opacity:.2;background:#d7af58;box-shadow:0 0 11px 3px rgba(238,194,101,.38);transform:rotate(var(--angle)) translateY(-116px) scale(calc(.55 + (var(--spark)*.05)))}
+.magic-sparks{inset:30px 7%;align-items:center;justify-content:space-around;font-size:22px}
+.magic-sparks i:nth-child(2n){transform:translateY(-62px);color:#c29a50}
+.magic-sparks i:nth-child(3){transform:translateY(82px)}
+.giftbox.premium:hover:not(:disabled){transform:translateY(-7px) rotateX(3deg) rotateY(-3deg) scale(1.025)}
+.giftbox.premium:active:not(:disabled){transform:translateY(1px) scale(.985)}
+.giftbox.premium.opening{animation:premiumOpening 1.25s cubic-bezier(.2,.75,.2,1) both}
+.giftbox.premium.opening .gift-lid{animation:premiumLid 1.2s cubic-bezier(.16,.82,.22,1) both}
+.giftbox.premium.opening .gift-bow{animation:premiumBow 1.2s cubic-bezier(.16,.82,.22,1) both}
+.giftbox.premium.opening .gift-light{animation:premiumLight 1.15s ease-out both}
+.giftbox.premium.opening .gift-body{animation:premiumBody .9s ease-out both}
+.giftbox.premium.opening .gift-shadow{animation:premiumShadow 1.2s ease-out both}
+.is-opening .gift-ambient i{animation:premiumBurst 1.15s cubic-bezier(.14,.7,.25,1) calc(var(--spark)*.018s) both}
+.is-opening .magic-sparks{animation:premiumStars 1s ease-out both}
+.is-opening .stage-label{animation:labelPulse .7s ease-in-out infinite alternate}
+@media(prefers-reduced-motion:no-preference){
+  .giftbox.premium:not(.opening){animation:premiumFloat 4.8s ease-in-out infinite}
+  .giftbox.premium:not(.opening) .gift-body::before{animation:premiumSheen 5.2s ease-in-out infinite}
+  .giftbox.premium:not(.opening) .gift-bow{animation:premiumBreathe 3.8s ease-in-out infinite}
+  .gift-ambient i{animation:premiumDust 3.8s ease-in-out calc(var(--spark)*-.31s) infinite}
+}
+@keyframes premiumFloat{0%,100%{transform:translateY(0) rotateX(0)}50%{transform:translateY(-8px) rotateX(1.5deg)}}
+@keyframes premiumSheen{0%,60%{transform:translateX(-130%)}90%,100%{transform:translateX(145%)}}
+@keyframes premiumBreathe{50%{transform:translateZ(34px) scale(1.045) rotateZ(1deg)}}
+@keyframes premiumDust{50%{opacity:.68;filter:brightness(1.25);transform:rotate(var(--angle)) translateY(-126px) scale(1)}}
+@keyframes premiumOpening{0%{transform:translateY(0) scale(1)}30%{transform:translateY(5px) scale(.97)}58%{transform:translateY(-18px) scale(1.045)}100%{transform:translateY(-6px) scale(1.03)}}
+@keyframes premiumLid{0%,25%{transform:translateZ(22px) rotateX(0)}58%{transform:translate3d(6px,-68px,75px) rotateX(-38deg) rotateZ(4deg)}100%{transform:translate3d(52px,-110px,40px) rotateX(-58deg) rotateZ(18deg);opacity:.1}}
+@keyframes premiumBow{0%,25%{transform:translateZ(34px)}58%{transform:translate3d(6px,-69px,87px) rotateX(-38deg) rotateZ(4deg)}100%{transform:translate3d(52px,-111px,52px) rotateX(-58deg) rotateZ(18deg);opacity:.12}}
+@keyframes premiumLight{0%,28%{opacity:0;transform:translate(-50%,-50%) scale(.18)}55%{opacity:1;transform:translate(-50%,-50%) scale(1.25)}100%{opacity:.15;transform:translate(-50%,-55%) scale(2.25)}}
+@keyframes premiumBody{35%{transform:translateZ(12px) scaleY(.97)}65%{transform:translateZ(12px) scaleY(1.025)}100%{transform:translateZ(12px)}}
+@keyframes premiumShadow{55%{opacity:.18;transform:scaleX(.7)}100%{opacity:.25;transform:scaleX(.82)}}
+@keyframes premiumBurst{0%{opacity:.25}48%{opacity:1;transform:rotate(var(--angle)) translateY(-120px) scale(1.8)}100%{opacity:0;transform:rotate(var(--angle)) translateY(-215px) scale(.25)}}
+@keyframes premiumStars{45%{opacity:1;transform:scale(1.18) rotate(4deg)}100%{opacity:0;transform:scale(1.5) translateY(-18px)}}
+@keyframes labelPulse{to{opacity:.48;letter-spacing:.34em}}
+@media(max-width:480px){.unveil-stage{min-height:340px}.giftbox.premium{width:236px;height:250px}.gift-lid{top:69px}.gift-bow{top:65px}.gift-tag{right:2px}.gift-ambient{transform:translate(-50%,-50%) scale(.88)}}
+@media(prefers-reduced-motion:reduce){
+  .giftbox.premium,.giftbox.premium *,.gift-ambient i,.is-opening .magic-sparks,.is-opening .stage-label{animation:none!important;transition:none!important}
+  .giftbox.premium.opening{transform:scale(1.02)}
+  .giftbox.premium.opening .gift-lid,.giftbox.premium.opening .gift-bow{opacity:0;transform:translateY(-35px)}
+  .giftbox.premium.opening .gift-light{opacity:.65;transform:translate(-50%,-50%) scale(1.35)}
+}
+
 
 /* SPA móvil de producción */
 header{height:auto;min-height:340px;padding:85px 20px 35px}.aboiz-photo{height:500px;min-height:0}h1.title{font-size:clamp(52px,12vw,90px)}.hero-sub{max-width:520px}main{padding-bottom:70px}.hidden{display:none!important}.auth-grid{display:grid;gap:12px}.auth-choice{width:100%;text-align:left;justify-content:space-between;padding:18px}.muted{color:#627568}.compact{max-width:520px;margin:auto}.data-table{width:100%;border-collapse:collapse;font-size:14px}.data-table th,.data-table td{text-align:left;border-bottom:1px solid #d6d8ca;padding:9px 5px;word-break:break-word}.scroll-x{overflow-x:auto}.overlay-wait{opacity:.65;pointer-events:none}.entry{display:grid;grid-template-columns:1fr auto;gap:8px}.error{background:#fde5df;color:#78291d;padding:12px;border-radius:11px}.success{background:#e1edda;color:#294935;padding:12px;border-radius:11px}.split{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}.code-out{background:#fff;border:1px dashed #729079;padding:10px;border-radius:10px;overflow-wrap:anywhere}.giftbox{border:0;background:none;cursor:pointer;position:relative}.giftbox .bow{pointer-events:none}@media(max-width:600px){header{height:auto;min-height:325px;padding:83px 18px 30px}.aboiz-photo{height:470px;min-height:0}.auth-choice{padding:17px}.card h2{font-size:34px}}

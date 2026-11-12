@@ -29,6 +29,7 @@
     role: sessionStorage.getItem("aboiz_role") || "",
     info: null,
     opened: false,
+    opening: false,
     notice: "",
     error: "",
     busy: false,
@@ -374,10 +375,19 @@
         <div class="eyebrow">Solo para tus ojos</div>
         <h2>Hay un nombre dentro</h2>
         <p class="lead">Asegúrate de que nadie mire la pantalla y toca la caja.</p>
-        <div class="unveil-stage">
-          <div class="glow-halo"></div><div class="magic-sparks" aria-hidden="true">✧ <i>✦</i> ✧ <i>✶</i> ✧</div>
-          <button type="button" class="giftbox" data-action="openGift" aria-label="Abrir la caja de regalo"><span class="gift-shadow"></span><span class="body"></span><span class="lid"></span><span class="bow"></span></button>
-          <div class="stage-label">TOCA LA CAJA</div>
+        <div class="unveil-stage ${state.opening ? "is-opening" : ""}">
+          <div class="glow-halo" aria-hidden="true"></div>
+          <div class="gift-ambient" aria-hidden="true">${Array.from({ length: 10 }, (_, index) => `<i style="--spark:${index}"></i>`).join("")}</div>
+          <div class="magic-sparks" aria-hidden="true"><i>✦</i><i>✧</i><i>✦</i><i>✶</i><i>✧</i></div>
+          <button type="button" class="giftbox premium ${state.opening ? "opening" : ""}" data-action="openGift" aria-label="Abrir la caja de regalo" ${state.opening ? 'disabled aria-busy="true"' : ""}>
+            <span class="gift-light" aria-hidden="true"></span>
+            <span class="gift-shadow" aria-hidden="true"></span>
+            <span class="gift-body" aria-hidden="true"><i class="paper-grain"></i><i class="ribbon-v"></i><i class="ribbon-h"></i><i class="gift-seal">A</i></span>
+            <span class="gift-lid" aria-hidden="true"><i class="lid-ribbon"></i></span>
+            <span class="gift-bow" aria-hidden="true"><i class="loop left"></i><i class="loop right"></i><i class="tail left"></i><i class="tail right"></i><i class="knot"></i></span>
+            <span class="gift-tag" aria-hidden="true">ABOIZ</span>
+          </button>
+          <div class="stage-label" aria-live="polite">${state.opening ? "ABRIENDO…" : "TOCA LA CAJA"}</div>
         </div>
       `, "reveal");
     }
@@ -455,13 +465,14 @@
     state.token = token;
     state.section = role === "guest" ? "reveal" : "overview";
     state.opened = false;
+    state.opening = false;
     state.view = "panel";
     sessionStorage.setItem("aboiz_auth", token);
     sessionStorage.setItem("aboiz_role", role);
   }
 
   function logout() {
-    Object.assign(state, { token: "", role: "", info: null, lastIssued: null, view: "home", section: "overview", opened: false, modal: null });
+    Object.assign(state, { token: "", role: "", info: null, lastIssued: null, view: "home", section: "overview", opened: false, opening: false, modal: null });
     sessionStorage.removeItem("aboiz_auth");
     sessionStorage.removeItem("aboiz_role");
   }
@@ -562,8 +573,20 @@
     if (action === "saveEdit") { saveEditedPerson(document.getElementById("edit-form")); return; }
     if (action.startsWith("section:")) { state.section = action.slice(8); setMessage(); render(); return; }
     if (action.startsWith("filter:")) { state.peopleFilter = action.slice(7); render(); return; }
-    if (action === "openGift") { state.opened = true; document.body.classList.add("revealing"); render(); setTimeout(() => document.body.classList.remove("revealing"), 1100); return; }
-    if (action === "hideGift") { state.opened = false; render(); return; }
+    if (action === "openGift") {
+      if (state.opening) return;
+      state.opening = true;
+      document.body.classList.add("revealing");
+      render();
+      window.setTimeout(() => {
+        state.opening = false;
+        state.opened = true;
+        document.body.classList.remove("revealing");
+        render();
+      }, 1250);
+      return;
+    }
+    if (action === "hideGift") { state.opened = false; state.opening = false; render(); return; }
     if (action === "refreshGift") { task(async () => { await refresh(); setMessage("", "Deseos actualizados."); }); return; }
     if (action === "copyMessage") {
       const message = state.lastIssued ? deliveryMessage(state.lastIssued) : "";
