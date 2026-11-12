@@ -179,7 +179,12 @@ export function createLocalApp(options={}) {
       if(activeDraw())throw fail('Ya existe un sorteo. Anúlalo antes de generar otro.',409);
       const people=db.people.filter(x=>x.year===YEAR&&x.active),settings={...db.config.options,exclusions:Object.fromEntries(people.map(x=>[x._id,meta(x._id).exclusions]))},pairs=makeDraw(people,settings);
       db.draws.push({_id:crypto.randomUUID(),year:YEAR,active:true,pairs,createdAt:new Date().toISOString()});
-      for(const person of people){person.codeHash='';person.rev=random(10);db.config.peopleMeta[person._id]={...meta(person._id),sent:false};}await save();return {ok:true};
+      const issued=people.map(person=>{
+        const code=accessCode();
+        person.codeHash=hash(pepper+':'+code);person.rev=random(10);db.config.peopleMeta[person._id]={...meta(person._id),sent:false};
+        return {id:person._id,name:person.name,email:person.email||'',code};
+      });
+      await save();return {ok:true,issued,count:issued.length};
     }
     if(action==='invalidateDraw'){
       const draw=activeDraw();if(!draw)throw fail('No hay sorteo activo',409);draw.active=false;

@@ -28,7 +28,10 @@ test('flujo local completo con roles, sorteo, deseos y revocación',async t=>{
   const testDraw=await call('testDraw',{token:admin});
   assert.equal(testDraw.status,200);assert.equal(testDraw.body.persisted,false);assert.equal(testDraw.body.sent,false);
   assert.equal((await call('me',{token:admin})).body.drawReady,false,'la prueba no guarda el sorteo');
-  assert.equal((await call('draw',{token:admin})).status,200);
+  const completedDraw=await call('draw',{token:admin});
+  assert.equal(completedDraw.status,200);
+  assert.equal(completedDraw.body.issued.length,6,'el sorteo genera un código por participante');
+  assert.ok(completedDraw.body.issued.every(item=>/^AB26-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/.test(item.code)));
   const adminView=(await call('me',{token:admin})).body;
   assert.equal(adminView.pairs.length,6);
   assert.ok(adminView.pairs.every(pair=>pair.from!==pair.to));
@@ -37,8 +40,9 @@ test('flujo local completo con roles, sorteo, deseos y revocación',async t=>{
   assert.equal('pairs' in managerView,false,'David no recibe emparejamientos');
   assert.equal(managerView.event.name,'Cena Aboiz');
   assert.equal(managerView.people.find(person=>person.name==='Ana').note,'Le gusta el verde');
+  assert.ok(adminView.people.every(person=>person.hasCode),'todos aparecen con código emitido');
   const ana=adminView.people.find(person=>person.name==='Ana');
-  const issued=(await call('issueCode',{token:admin,id:ana._id})).body;
+  const issued=completedDraw.body.issued.find(person=>person.id===ana._id);
   assert.match(issued.code,/^AB26-[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/);
   assert.equal((await call('markDelivered',{token:admin,id:ana._id,sent:true})).status,200);
   const guest=(await call('codeLogin',{code:issued.code})).body.token;

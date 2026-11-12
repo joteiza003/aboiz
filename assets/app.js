@@ -36,6 +36,7 @@
     error: "",
     busy: false,
     lastIssued: null,
+    issuedBatch: [],
     peopleFilter: "active",
     peopleSearch: "",
     modal: null,
@@ -318,7 +319,7 @@
       return `
         ${card(`<div class="eyebrow">Sorteo</div><h2>Preparar el momento</h2><p class="lead">El sorteo crea una asignación secreta para cada participante y bloquea la lista.</p>${drawRing(active)}
           <form id="draw-options-form" class="stack-form draw-options"><label class="toggle"><input type="checkbox" name="noMutual" ${data.options?.noMutual !== false ? "checked" : ""}> Evitar parejas recíprocas (A regala a B y B a A)</label><button class="btn" type="submit">Guardar regla</button></form>
-          <div class="check-list"><p class="${active.length >= 3 ? "checked" : ""}">Hay al menos tres participantes activos</p><p class="checked">Nadie puede regalarse a sí mismo</p><p class="checked">Se respetan las exclusiones personales</p><p class="checked">Los resultados solo serán visibles para Joseba</p></div><div class="btns"><button class="btn" type="button" data-action="testDraw" ${active.length < 3 ? "disabled" : ""}>Probar reglas sin guardar</button><button class="btn primary" type="button" data-action="draw" ${active.length < 3 ? "disabled" : ""}>Realizar sorteo definitivo</button></div><p class="small">La prueba no guarda parejas, no genera códigos y no envía nada.</p>`, "draw-card")}
+          <div class="check-list"><p class="${active.length >= 3 ? "checked" : ""}">Hay al menos tres participantes activos</p><p class="checked">Nadie puede regalarse a sí mismo</p><p class="checked">Se respetan las exclusiones personales</p><p class="checked">Se generará un código para cada participante</p><p class="checked">Los resultados solo serán visibles para Joseba</p></div><div class="btns"><button class="btn" type="button" data-action="testDraw" ${active.length < 3 ? "disabled" : ""}>Probar reglas sin guardar</button><button class="btn primary" type="button" data-action="draw" ${active.length < 3 ? "disabled" : ""}>Sortear y generar códigos</button></div><p class="small">La prueba no guarda parejas, no genera códigos y no envía nada.</p>`, "draw-card")}
         ${card(`<h3>Antes de continuar</h3><p class="lead">Revisa nombres y correos. Después del sorteo solo podrás hacer cambios anulándolo, lo que invalidará todos los códigos enviados.</p>`)}
       `;
     }
@@ -342,10 +343,10 @@
     const data = state.info;
     const active = data.people.filter(person => person.active);
     if (!data.drawReady) return card(`<div class="eyebrow">Códigos</div><h2>Primero realiza el sorteo</h2><p class="lead">Los códigos se vinculan al resultado activo. Ve a la sección Sorteo cuando la lista esté preparada.</p>${button("section:draw", "Ir al sorteo", "btn primary")}`);
-    const sent=active.filter(person=>person.sent).length,message=state.lastIssued?deliveryMessage(state.lastIssued):"";
+    const sent=active.filter(person=>person.sent).length,message=state.lastIssued?deliveryMessage(state.lastIssued):"",batch=state.issuedBatch||[];
     const emailAction=state.lastIssued?.email?`<a class="btn" data-email-link href="${escapeHtml(emailMessageUrl(state.lastIssued))}">Abrir correo</a>`:`<span class="mail">Sin correo guardado</span>`;
     return `
-      ${card(`<div class="section-title"><div><div class="eyebrow">Entrega privada</div><h2>Invitaciones personales</h2></div><span class="count-badge">${sent}/${active.length} enviados</span></div><div class="progress-track"><span style="width:${active.length?sent*100/active.length:0}%"></span></div><p class="lead">Genera el código, envía el mensaje y marca la entrega. Al regenerarlo, el anterior deja de funcionar.</p>${state.lastIssued ? `<div class="issued-code"><div><small>Invitación nueva para</small><strong>${escapeHtml(state.lastIssued.name)}</strong></div><code id="generated-code">${escapeHtml(state.lastIssued.code)}</code><textarea id="delivery-message" readonly>${escapeHtml(message)}</textarea><div class="btns">${button("copyMessage", "Copiar mensaje", "btn gold")}${button("whatsappMessage", "WhatsApp", "btn primary")}${emailAction}</div><p>Correo y WhatsApp se abren con el texto completo preparado. El envío final siempre lo confirmas tú.</p></div>` : ""}`)}
+      ${card(`<div class="section-title"><div><div class="eyebrow">Entrega privada</div><h2>Invitaciones personales</h2></div><span class="count-badge">${sent}/${active.length} enviados</span></div><div class="progress-track"><span style="width:${active.length?sent*100/active.length:0}%"></span></div><p class="lead">El sorteo ya ha generado un código para cada participante. Selecciona una invitación para preparar su envío; si regeneras un código, el anterior dejará de funcionar.</p>${batch.length ? `<div class="batch-issued"><div class="batch-heading"><strong>${batch.length} códigos recién generados</strong><small>Se muestran durante esta sesión. Guárdalos o prepara los mensajes antes de cerrar.</small></div>${batch.map((issued,index)=>`<article><div><strong>${escapeHtml(issued.name)}</strong><code>${escapeHtml(issued.code)}</code></div>${button("batchIssued:"+index,"Preparar envío","btn mini gold")}</article>`).join("")}</div>` : ""}${state.lastIssued ? `<div class="issued-code"><div><small>Invitación preparada para</small><strong>${escapeHtml(state.lastIssued.name)}</strong></div><code id="generated-code">${escapeHtml(state.lastIssued.code)}</code><textarea id="delivery-message" readonly>${escapeHtml(message)}</textarea><div class="btns">${button("copyMessage", "Copiar mensaje", "btn gold")}${button("whatsappMessage", "WhatsApp", "btn primary")}${emailAction}</div><p>Correo y WhatsApp se abren con el texto completo preparado. El envío final siempre lo confirmas tú.</p></div>` : ""}`)}
       ${card(`<div class="code-list">${active.map(person => `<article><span class="person-avatar" style="--avatar-hue:${avatarHue(person.name)}">${escapeHtml(initials(person.name))}</span><div><strong>${escapeHtml(person.name)}</strong><small>${person.sent?"Invitación entregada":person.hasCode?"Código activo, pendiente de envío":"Pendiente de generar"}</small></div><span class="mini-pill ${person.sent ? "yes" : ""}">${person.sent?"Enviado":person.hasCode?"Emitido":"Pendiente"}</span>${button("issue:" + person._id, person.hasCode ? "Regenerar" : "Generar", "btn mini " + (person.hasCode ? "" : "primary"))}${person.hasCode?button("delivered:"+person._id,person.sent?"Desmarcar":"Marcar enviado","btn mini"):""}</article>`).join("")}</div>`)}
     `;
   }
@@ -496,7 +497,7 @@
   }
 
   function logout() {
-    Object.assign(state, { token: "", role: "", info: null, lastIssued: null, view: "home", section: "overview", opened: false, opening: false, wishDecisionMade: false, wishOnboarding: false, modal: null });
+    Object.assign(state, { token: "", role: "", info: null, lastIssued: null, issuedBatch: [], view: "home", section: "overview", opened: false, opening: false, wishDecisionMade: false, wishOnboarding: false, modal: null });
     sessionStorage.removeItem("aboiz_auth");
     sessionStorage.removeItem("aboiz_role");
   }
@@ -521,13 +522,13 @@
   async function performConfirmed(action) {
     state.modal = null;
     if (action === "draw") {
-      await task(async () => { await request("draw"); await refresh(); state.section = "draw"; celebrate(); setMessage("", "Sorteo realizado y participantes bloqueados."); });
+      await task(async () => { const result=await request("draw");state.issuedBatch=Array.isArray(result.issued)?result.issued:[];state.lastIssued=state.issuedBatch[0]||null;await refresh();state.section="delivery";celebrate();setMessage("",`Sorteo realizado y ${result.count||state.issuedBatch.length} códigos generados.`); });
     } else if (action === "resetDraw") {
-      await task(async () => { await request("invalidateDraw"); state.lastIssued = null; await refresh(); state.section = "overview"; setMessage("", "Sorteo anulado y códigos invalidados."); });
+      await task(async () => { await request("invalidateDraw"); state.lastIssued = null; state.issuedBatch = []; await refresh(); state.section = "overview"; setMessage("", "Sorteo anulado y códigos invalidados."); });
     } else if (action.startsWith("remove:")) {
       await task(async () => { await request("removePerson", { id: action.slice(7) }); await refresh(); setMessage("", "Participante retirado."); });
     } else if (action.startsWith("issue:")) {
-      await task(async () => { state.lastIssued = await request("issueCode", { id: action.slice(6) }); state.lastIssued.id=action.slice(6); await refresh(); state.section = "delivery"; setMessage("", "Invitación generada. Envíala antes de continuar."); });
+      await task(async () => { state.lastIssued = await request("issueCode", { id: action.slice(6) }); state.lastIssued.id=action.slice(6); state.issuedBatch=state.issuedBatch.filter(item=>item.id!==state.lastIssued.id); await refresh(); state.section = "delivery"; setMessage("", "Invitación regenerada. El código anterior ya no funciona."); });
     } else if (action === "clearWishes") {
       await task(async () => {
         await request("saveWish", { selected: [], other: "" });
@@ -632,6 +633,11 @@
     }
     if (action === "hideGift") { state.opened = false; state.opening = false; render(); return; }
     if (action === "refreshGift") { task(async () => { await refresh(); setMessage("", "Deseos actualizados."); }); return; }
+    if (action.startsWith("batchIssued:")) {
+      const issued = state.issuedBatch[Number(action.slice(12))];
+      if (issued) { state.lastIssued = issued; render(); }
+      return;
+    }
     if (action === "copyMessage") {
       const message = state.lastIssued ? deliveryMessage(state.lastIssued) : "";
       if (message) navigator.clipboard.writeText(message).then(() => { setMessage("", "Mensaje copiado."); render(); }).catch(() => { setMessage("No se pudo copiar. Selecciona el mensaje manualmente."); render(); });
@@ -639,7 +645,7 @@
     }
     if(action==="whatsappMessage"&&state.lastIssued){window.open("https://wa.me/?text="+encodeURIComponent(deliveryMessage(state.lastIssued)),"_blank","noopener,noreferrer");return;}
     if(action.startsWith("delivered:")){const id=action.slice(10),person=state.info.people.find(x=>x._id===id);task(async()=>{await request("markDelivered",{id,sent:!person.sent});await refresh();setMessage("",person.sent?"Entrega desmarcada.":"Entrega marcada como enviada.");});return;}
-    if (action === "draw") { confirmAction("Realizar el sorteo", "La lista quedará bloqueada y se creará una asignación secreta para cada participante.", "draw", "Realizar sorteo"); return; }
+    if (action === "draw") { confirmAction("Realizar el sorteo y generar códigos", "La lista quedará bloqueada, se creará una asignación secreta y se generará un código personal para cada participante activo.", "draw", "Sortear y generar códigos"); return; }
     if (action === "testDraw") { task(async () => { const result=await request("testDraw"); celebrate(); setMessage("", `Prueba correcta: ${result.count} participantes, sin guardar resultados ni enviar nada.`); }); return; }
     if (action === "resetDraw") { confirmAction("Anular el sorteo", "Se invalidarán todos los códigos personales enviados. Esta acción no se puede deshacer.", "resetDraw", "Anular definitivamente", true); return; }
     if (action.startsWith("issue:")) {
