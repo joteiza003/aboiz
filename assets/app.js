@@ -30,6 +30,8 @@
     info: null,
     opened: false,
     opening: false,
+    wishDecisionMade: false,
+    wishOnboarding: false,
     notice: "",
     error: "",
     busy: false,
@@ -370,6 +372,20 @@
   function guestReveal() {
     const data = state.info;
     if (!data.drawReady) return card(`<div class="eyebrow">Mi regalo</div><h2>El sorteo todavía no está listo</h2><p class="lead">Vuelve cuando Joseba haya terminado de preparar la edición.</p>`);
+    if (!state.wishDecisionMade) {
+      const hasWishes = Boolean(data.myWishes?.selected?.length || data.myWishes?.other);
+      return card(`
+        <div class="wish-invitation" aria-hidden="true"><span>♡</span><i>✦</i></div>
+        <div class="eyebrow">Antes de descubrir el nombre</div>
+        <h2>${hasWishes ? "¿Quieres revisar tus deseos?" : "¿Quieres preparar tu lista de deseos?"}</h2>
+        <p class="lead">${hasWishes ? "Ya tienes preferencias guardadas. Puedes actualizarlas ahora o continuar directamente." : "Es opcional, pero ayudará a la persona que te regala a elegir algo que te haga ilusión."}</p>
+        <div class="wish-choice-actions">
+          ${button("startWishes", hasWishes ? "Revisar mi lista" : "Sí, preparar mi lista", "btn gold big")}
+          ${button("skipWishes", "Ahora no, abrir mi regalo", "btn quiet")}
+        </div>
+        <p class="small center-copy">Podrás cambiarla más adelante desde «Mis deseos».</p>
+      `, "wish-gate");
+    }
     if (!state.opened) {
       return card(`
         <div class="eyebrow">Solo para tus ojos</div>
@@ -466,13 +482,15 @@
     state.section = role === "guest" ? "reveal" : "overview";
     state.opened = false;
     state.opening = false;
+    state.wishDecisionMade = role !== "guest";
+    state.wishOnboarding = false;
     state.view = "panel";
     sessionStorage.setItem("aboiz_auth", token);
     sessionStorage.setItem("aboiz_role", role);
   }
 
   function logout() {
-    Object.assign(state, { token: "", role: "", info: null, lastIssued: null, view: "home", section: "overview", opened: false, opening: false, modal: null });
+    Object.assign(state, { token: "", role: "", info: null, lastIssued: null, view: "home", section: "overview", opened: false, opening: false, wishDecisionMade: false, wishOnboarding: false, modal: null });
     sessionStorage.removeItem("aboiz_auth");
     sessionStorage.removeItem("aboiz_role");
   }
@@ -505,7 +523,15 @@
     } else if (action.startsWith("issue:")) {
       await task(async () => { state.lastIssued = await request("issueCode", { id: action.slice(6) }); state.lastIssued.id=action.slice(6); await refresh(); state.section = "delivery"; setMessage("", "Invitación generada. Envíala antes de continuar."); });
     } else if (action === "clearWishes") {
-      await task(async () => { await request("saveWish", { selected: [], other: "" }); await refresh(); state.section = "wishes"; setMessage("", "Tu lista se ha dejado en blanco."); });
+      await task(async () => {
+        await request("saveWish", { selected: [], other: "" });
+        await refresh();
+        const returnToGift = state.wishOnboarding;
+        state.wishDecisionMade = true;
+        state.wishOnboarding = false;
+        state.section = returnToGift ? "reveal" : "wishes";
+        setMessage("", returnToGift ? "Has dejado la lista en blanco. Ya puedes abrir tu regalo." : "Tu lista se ha dejado en blanco.");
+      });
     }
   }
 
@@ -541,8 +567,11 @@
       task(async () => {
         await request("saveWish", { selected: values.getAll("cat"), other: String(values.get("other")) });
         await refresh();
-        state.section = "wishes";
-        setMessage("", "Tus preferencias se han guardado.");
+        const returnToGift = state.wishOnboarding;
+        state.wishDecisionMade = true;
+        state.wishOnboarding = false;
+        state.section = returnToGift ? "reveal" : "wishes";
+        setMessage("", returnToGift ? "Tu lista está guardada. Ya puedes abrir tu regalo." : "Tus preferencias se han guardado.");
       });
     }
   });
@@ -571,8 +600,17 @@
     if (action === "choose-guest") { state.view = "code"; setMessage(); render(); return; }
     if (action === "logout") { logout(); render(); return; }
     if (action === "saveEdit") { saveEditedPerson(document.getElementById("edit-form")); return; }
-    if (action.startsWith("section:")) { state.section = action.slice(8); setMessage(); render(); return; }
+    if (action.startsWith("section:")) {
+      const nextSection = action.slice(8);
+      if (state.role === "guest" && nextSection === "wishes" && !state.wishDecisionMade) {
+        state.wishDecisionMade = true;
+        state.wishOnboarding = true;
+      }
+      state.section = nextSection; setMessage(); render(); return;
+    }
     if (action.startsWith("filter:")) { state.peopleFilter = action.slice(7); render(); return; }
+    if (action === "startWishes") { state.wishDecisionMade = true; state.wishOnboarding = true; state.section = "wishes"; render(); return; }
+    if (action === "skipWishes") { state.wishDecisionMade = true; state.wishOnboarding = false; render(); return; }
     if (action === "openGift") {
       if (state.opening) return;
       state.opening = true;

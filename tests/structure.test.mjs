@@ -19,6 +19,7 @@ test('la interfaz separa evento, sorteo, entrega y permisos',()=>{
  assert.match(js,/function emailMessageUrl/);assert.match(js,/data-email-link/);
  assert.match(js,/state\.role === "admin"/);assert.match(js,/David no puede ver/);
  assert.match(js,/giftbox premium/);assert.match(js,/state\.opening/);assert.match(js,/gift-light/);
+ assert.match(js,/startWishes/);assert.match(js,/skipWishes/);assert.match(js,/wishDecisionMade/);
 });
 test('el modo local está configurado y sus datos no entran en Git',()=>{
  const pkg=JSON.parse(read('package.json'));assert.equal(pkg.scripts.start,'node server/local-server.mjs');
